@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 import { CalendarService } from '@/services/CalendarService'
-import type { DayFile, MonthData } from '@/services/CalendarService'
+import type { DayFile, SlateEntry, MonthData } from '@/services/CalendarService'
 
 interface UseCalendarMonthResult {
   /** Current view year */
@@ -10,8 +10,12 @@ interface UseCalendarMonthResult {
   month: number
   /** Set of day numbers that have files */
   daysWithFiles: Set<number>
+  /** Set of date strings (YYYY-MM-DD) that have pending followups */
+  followupDates: Set<string>
   /** Get files for a specific day */
   getFilesForDay: (day: number) => DayFile[]
+  /** Get parsed slates for a specific day */
+  getSlatesForDay: (day: number) => Promise<SlateEntry[]>
   /** Navigate to previous month */
   prevMonth: () => void
   /** Navigate to next month */
@@ -29,6 +33,7 @@ export function useCalendarMonth(): UseCalendarMonthResult {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1) // 1-based
   const [monthData, setMonthData] = useState<MonthData | null>(null)
+  const [followupDates, setFollowupDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,10 +42,14 @@ export function useCalendarMonth(): UseCalendarMonthResult {
     setLoading(true)
     setError(null)
 
-    CalendarService.getMonthData(year, month)
-      .then((data) => {
+    Promise.all([
+      CalendarService.getMonthData(year, month),
+      CalendarService.getFollowupDates(),
+    ])
+      .then(([data, fuDates]) => {
         if (!cancelled) {
           setMonthData(data)
+          setFollowupDates(fuDates)
         }
       })
       .catch((err) => {
@@ -86,11 +95,20 @@ export function useCalendarMonth(): UseCalendarMonthResult {
     [monthData],
   )
 
+  const getSlatesForDay = useCallback(
+    async (day: number): Promise<SlateEntry[]> => {
+      return CalendarService.getSlatesForDay(year, month, day)
+    },
+    [year, month],
+  )
+
   return {
     year,
     month,
     daysWithFiles: monthData?.daysWithFiles ?? new Set(),
+    followupDates,
     getFilesForDay,
+    getSlatesForDay,
     prevMonth,
     nextMonth,
     goToday,

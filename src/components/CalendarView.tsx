@@ -1,9 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { useCalendarMonth } from '@/hooks/useCalendarMonth'
-import type { DayFile } from '@/services/CalendarService'
+import type { SlateEntry } from '@/services/CalendarService'
 import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/utils/calendarUtils'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -14,7 +14,15 @@ interface CalendarViewProps {
   onFabTap?: () => void
 }
 
-// ─── Tab bar (shared pattern with HomeView) ─────────────────────────────
+// Slate type → icon/color mapping
+const SLATE_TYPE_META: Record<string, { icon: 'users' | 'folder' | 'file' | 'alert'; colorVar: string; label: string }> = {
+  meeting:  { icon: 'users',  colorVar: '--color-meet',     label: '회의' },
+  task:     { icon: 'folder', colorVar: '--color-task',     label: '업무' },
+  memo:     { icon: 'file',   colorVar: '--color-memo',     label: '메모' },
+  personal: { icon: 'alert', colorVar: '--color-personal', label: '개인' },
+}
+
+// ─── Tab bar ────────────────────────────────────────────────────────────
 
 const TAB_ITEMS = [
   { key: 'home',     label: '홈',       icon: 'home' as const },
@@ -147,12 +155,14 @@ function CalendarGrid({
   month,
   selectedDate,
   daysWithFiles,
+  followupDates,
   onSelectDate,
 }: {
   year: number
   month: number
   selectedDate: string
   daysWithFiles: Set<number>
+  followupDates: Set<string>
   onSelectDate: (dateStr: string, isCurrent: boolean) => void
 }) {
   const cells = useMemo(() => buildMonthCells(year, month - 1), [year, month])
@@ -180,6 +190,7 @@ function CalendarGrid({
           const isSelected = cell.dateStr === selectedDate
           const isSun = new Date(cell.year, cell.month, cell.day).getDay() === 0
           const hasFile = cell.current && daysWithFiles.has(cell.day)
+          const hasFollowup = cell.current && followupDates.has(cell.dateStr)
 
           let bg = 'transparent'
           let textColor = cell.current
@@ -218,20 +229,32 @@ function CalendarGrid({
                 }}
               >
                 {cell.day}
-                {hasFile && (
-                  <span
-                    className="absolute"
-                    style={{
-                      bottom: 2,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: 4,
-                      height: 4,
-                      borderRadius: 2,
-                      background: dotColor,
-                    }}
-                  />
-                )}
+                {/* Dots row: journal (accent) + followup (red) */}
+                <span
+                  className="absolute flex items-center gap-[3px]"
+                  style={{ bottom: 1, left: '50%', transform: 'translateX(-50%)' }}
+                >
+                  {hasFile && (
+                    <span
+                      style={{
+                        width: 4,
+                        height: 4,
+                        borderRadius: 2,
+                        background: dotColor,
+                      }}
+                    />
+                  )}
+                  {hasFollowup && (
+                    <span
+                      style={{
+                        width: 4,
+                        height: 4,
+                        borderRadius: 2,
+                        background: 'var(--color-danger)',
+                      }}
+                    />
+                  )}
+                </span>
               </div>
             </button>
           )
@@ -241,18 +264,18 @@ function CalendarGrid({
   )
 }
 
-// ─── Day list (bottom section) ──────────────────────────────────────────
+// ─── Slate list (bottom section) ────────────────────────────────────────
 
-function DayList({
+function SlateList({
   selectedDate,
-  files,
+  slates,
   loading,
-  onFileTap,
+  onSlateTap,
 }: {
   selectedDate: string
-  files: DayFile[]
+  slates: SlateEntry[]
   loading: boolean
-  onFileTap: (path: string) => void
+  onSlateTap: (slate: SlateEntry) => void
 }) {
   const [y, m, d] = selectedDate.split('-').map(Number)
   const date = new Date(y, m - 1, d)
@@ -282,11 +305,11 @@ function DayList({
           className="font-mono text-[11px]"
           style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}
         >
-          {loading ? '...' : `${files.length} files`}
+          {loading ? '...' : `${slates.length} slates`}
         </div>
       </div>
 
-      {/* File list */}
+      {/* Slate list */}
       <div className="flex-1 overflow-auto px-4 pb-6">
         {loading ? (
           <div className="flex flex-col gap-2.5">
@@ -298,7 +321,7 @@ function DayList({
               />
             ))}
           </div>
-        ) : files.length === 0 ? (
+        ) : slates.length === 0 ? (
           <div
             className="mt-3 rounded-2xl border border-dashed p-[22px_18px] text-center"
             style={{
@@ -307,10 +330,10 @@ function DayList({
             }}
           >
             <div className="text-[13px] font-semibold" style={{ color: 'var(--color-text-sec)' }}>
-              이 날 파일 없음
+              이 날 슬레이트 없음
             </div>
             <div className="mt-1 text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-              데스크탑에서 작성된 일지가 여기에 표시됩니다.
+              데스크탑에서 작성된 슬레이트가 여기에 표시됩니다.
             </div>
           </div>
         ) : (
@@ -322,28 +345,44 @@ function DayList({
               boxShadow: 'var(--glass-shadow)',
             }}
           >
-            {files.map((file, i) => (
-              <button
-                key={file.sha}
-                onClick={() => onFileTap(file.path)}
-                className="flex w-full items-center gap-3 border-none bg-transparent px-4 py-3 text-left"
-                style={{
-                  borderTop: i > 0 ? '1px solid var(--color-border)' : 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                <Icon name="file" size={16} color="var(--color-text-muted)" sw={1.8} />
-                <div className="min-w-0 flex-1">
+            {slates.map((slate, i) => {
+              const meta = SLATE_TYPE_META[slate.type] ?? SLATE_TYPE_META.memo
+              return (
+                <button
+                  key={slate.id}
+                  onClick={() => onSlateTap(slate)}
+                  className="flex w-full items-center gap-3 border-none bg-transparent px-4 py-3 text-left"
+                  style={{
+                    borderTop: i > 0 ? '1px solid var(--color-border)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                >
                   <div
-                    className="truncate text-[13px] font-semibold"
-                    style={{ color: 'var(--color-text)' }}
+                    className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      background: `color-mix(in srgb, var(${meta.colorVar}) 12%, transparent)`,
+                    }}
                   >
-                    {file.name.replace(/\.md$/, '')}
+                    <Icon name={meta.icon} size={14} color={`var(${meta.colorVar})`} sw={1.8} />
                   </div>
-                </div>
-                <Icon name="chev-right" size={14} color="var(--color-text-faint)" sw={2} />
-              </button>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="truncate text-[13px] font-semibold"
+                      style={{ color: 'var(--color-text)' }}
+                    >
+                      {slate.title}
+                    </div>
+                    <div
+                      className="mt-0.5 text-[10px]"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      {meta.label}
+                    </div>
+                  </div>
+                  <Icon name="chev-right" size={14} color="var(--color-text-faint)" sw={2} />
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -356,48 +395,74 @@ function DayList({
 export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewProps) {
   const {
     year, month,
-    daysWithFiles, getFilesForDay,
+    daysWithFiles, followupDates,
+    getSlatesForDay,
     prevMonth, nextMonth, goToday,
     loading,
   } = useCalendarMonth()
 
   const todayStr = getToday()
   const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [slates, setSlates] = useState<SlateEntry[]>([])
+  const [slateLoading, setSlateLoading] = useState(false)
 
   // Check if viewing current month
   const now = new Date()
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
 
+  // Fetch slates when selected date changes and it has files
+  const selectedDay = parseInt(selectedDate.split('-')[2], 10)
+  const selectedMonth = parseInt(selectedDate.split('-')[1], 10)
+  const dayHasFiles = selectedMonth === month && daysWithFiles.has(selectedDay)
+
+  useEffect(() => {
+    if (!dayHasFiles || loading) {
+      setSlates([])
+      return
+    }
+
+    let cancelled = false
+    setSlateLoading(true)
+
+    getSlatesForDay(selectedDay)
+      .then((result) => {
+        if (!cancelled) setSlates(result)
+      })
+      .catch(() => {
+        if (!cancelled) setSlates([])
+      })
+      .finally(() => {
+        if (!cancelled) setSlateLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [selectedDay, dayHasFiles, loading, getSlatesForDay])
+
   const handleSelectDate = useCallback((dateStr: string, isCurrent: boolean) => {
     if (!isCurrent) {
-      // Navigate to that month
-      const [y, m] = dateStr.split('-').map(Number)
-      // The hook will handle month change, but we need to trigger it
-      const targetDate = new Date(y, m - 1, 1)
-      const currentView = new Date(year, month - 1, 1)
-      if (targetDate < currentView) {
+      const [, m] = dateStr.split('-').map(Number)
+      const targetMonth = m
+      if (targetMonth < month || (targetMonth === 12 && month === 1)) {
         prevMonth()
       } else {
         nextMonth()
       }
     }
     setSelectedDate(dateStr)
-  }, [year, month, prevMonth, nextMonth])
+  }, [month, prevMonth, nextMonth])
 
   const handleToday = useCallback(() => {
     goToday()
     setSelectedDate(formatDate(new Date()))
   }, [goToday])
 
-  // Get files for selected day
-  const selectedDay = parseInt(selectedDate.split('-')[2], 10)
-  const selectedMonth = parseInt(selectedDate.split('-')[1], 10)
-  const selectedFiles = selectedMonth === month ? getFilesForDay(selectedDay) : []
-
-  // If only 1 file for tapped date, go directly to it
-  const handleFileTap = useCallback((path: string) => {
+  // Tapping a slate navigates to its journal file
+  const handleSlateTap = useCallback((_slate: SlateEntry) => {
+    const mm = String(selectedMonth).padStart(2, '0')
+    const dd = String(selectedDay).padStart(2, '0')
+    const path = `journals/${year}/${mm}/${dd}.json`
     onFileTap(path)
-  }, [onFileTap])
+  }, [year, selectedMonth, selectedDay, onFileTap])
 
   return (
     <div
@@ -430,13 +495,14 @@ export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewP
           month={month}
           selectedDate={selectedDate}
           daysWithFiles={daysWithFiles}
+          followupDates={followupDates}
           onSelectDate={handleSelectDate}
         />
-        <DayList
+        <SlateList
           selectedDate={selectedDate}
-          files={selectedFiles}
-          loading={loading}
-          onFileTap={handleFileTap}
+          slates={slates}
+          loading={loading || slateLoading}
+          onSlateTap={handleSlateTap}
         />
       </div>
 

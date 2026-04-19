@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import type { WikiCategory } from '@/hooks/useWikiTree'
-import type { DayFile } from '@/services/CalendarService'
+import type { SlateEntry } from '@/services/CalendarService'
 import type { RecentDoc } from '@/hooks/useRecentDocs'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import {
@@ -15,9 +15,9 @@ import {
 interface HomeViewProps {
   categories: WikiCategory[]
   loading: boolean
-  /** Today files */
+  /** Today slates */
   selectedDate: string
-  todayFiles: DayFile[]
+  todaySlates: SlateEntry[]
   todayLoading: boolean
   daysWithFiles: Set<number>
   onSelectDate: (dateStr: string) => void
@@ -31,6 +31,13 @@ interface HomeViewProps {
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
   onFabTap?: () => void
+}
+
+const SLATE_TYPE_META: Record<string, { icon: 'users' | 'folder' | 'file' | 'alert'; colorVar: string; label: string }> = {
+  meeting:  { icon: 'users',  colorVar: '--color-meet',     label: '회의' },
+  task:     { icon: 'folder', colorVar: '--color-task',     label: '업무' },
+  memo:     { icon: 'file',   colorVar: '--color-memo',     label: '메모' },
+  personal: { icon: 'alert', colorVar: '--color-personal', label: '개인' },
 }
 
 const CATEGORY_META: Record<string, { icon: 'users' | 'folder' | 'alert' | 'file'; colorVar: string }> = {
@@ -276,13 +283,15 @@ function WeekStrip({
 // ─── Today card ─────────────────────────────────────────────────────────
 
 function TodayCard({
-  files,
+  slates,
   loading,
   onFileTap,
+  selectedDate,
 }: {
-  files: DayFile[]
+  slates: SlateEntry[]
   loading: boolean
   onFileTap: (path: string) => void
+  selectedDate: string
 }) {
   if (loading) {
     return (
@@ -290,29 +299,28 @@ function TodayCard({
         className="mx-4 overflow-hidden rounded-[18px] border"
         style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
       >
-        {[0, 1, 2, 3, 4].map((i) => (
+        {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="flex items-center gap-2.5 px-3.5 py-2"
-            style={{ borderBottom: i < 4 ? '1px solid var(--color-hairline)' : 'none' }}
+            className="flex items-center gap-2.5 px-3.5 py-2.5"
+            style={{ borderBottom: i < 2 ? '1px solid var(--color-hairline)' : 'none' }}
           >
-            <div className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--color-skel)' }} />
-            <div className="h-2.5 w-8 rounded" style={{ background: 'var(--color-skel)' }} />
-            <div className="h-3 flex-1 rounded" style={{ background: 'var(--color-skel)' }} />
+            <div className="h-7 w-7 rounded-lg" style={{ background: 'var(--color-skel)' }} />
+            <div className="h-3.5 flex-1 rounded" style={{ background: 'var(--color-skel)' }} />
           </div>
         ))}
       </div>
     )
   }
 
-  if (files.length === 0) {
+  if (slates.length === 0) {
     return (
       <div
         className="mx-4 rounded-[18px] border border-dashed p-[22px_18px]"
         style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-strong)' }}
       >
         <div className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-          아직 이 날의 파일이 없습니다
+          아직 이 날의 슬레이트가 없습니다
         </div>
         <div className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
           하단 FAB으로 빠른 메모를 남기거나 데스크탑에서 생성할 수 있습니다.
@@ -321,40 +329,50 @@ function TodayCard({
     )
   }
 
+  // Build journal path from selected date
+  const [y, m, d] = selectedDate.split('-')
+  const journalPath = `journals/${y}/${m}/${d}.json`
+
   return (
     <div
       className="mx-4 overflow-hidden rounded-[18px] border"
       style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
     >
-      {files.map((file, i) => (
-        <button
-          key={file.sha}
-          onClick={() => onFileTap(file.path)}
-          className="flex w-full items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left"
-          style={{
-            borderBottom: i < files.length - 1 ? '1px solid var(--color-hairline)' : 'none',
-            cursor: 'pointer',
-            minHeight: 36,
-          }}
-        >
-          <span
-            className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-            style={{ background: 'var(--color-accent)' }}
-          />
-          <div
-            className="min-w-0 flex-1 truncate text-[13.5px] font-medium"
-            style={{ color: 'var(--color-text)', letterSpacing: '-0.015em' }}
+      {slates.map((slate, i) => {
+        const meta = SLATE_TYPE_META[slate.type] ?? SLATE_TYPE_META.memo
+        return (
+          <button
+            key={slate.id}
+            onClick={() => onFileTap(journalPath)}
+            className="flex w-full items-center gap-2.5 border-none bg-transparent px-3.5 py-2.5 text-left"
+            style={{
+              borderBottom: i < slates.length - 1 ? '1px solid var(--color-hairline)' : 'none',
+              cursor: 'pointer',
+              minHeight: 40,
+            }}
           >
-            {file.name.replace(/\.md$/, '')}
-          </div>
-          <span
-            className="rounded px-1 py-0.5 font-mono text-[8.5px] font-bold tracking-wider"
-            style={{ color: 'var(--color-daily)', background: 'color-mix(in srgb, var(--color-daily) 13%, transparent)' }}
-          >
-            MD
-          </span>
-        </button>
-      ))}
+            <div
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style={{
+                background: `color-mix(in srgb, var(${meta.colorVar}) 12%, transparent)`,
+              }}
+            >
+              <Icon name={meta.icon} size={14} color={`var(${meta.colorVar})`} sw={1.8} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div
+                className="truncate text-[13.5px] font-medium"
+                style={{ color: 'var(--color-text)', letterSpacing: '-0.015em' }}
+              >
+                {slate.title}
+              </div>
+              <div className="mt-0.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                {meta.label}
+              </div>
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -557,7 +575,7 @@ export function HomeView({
   categories,
   loading,
   selectedDate,
-  todayFiles,
+  todaySlates,
   todayLoading,
   daysWithFiles,
   onSelectDate,
@@ -614,9 +632,9 @@ export function HomeView({
         <div className="h-1.5" />
         <SectionHeader
           title={sectionTitle}
-          detail={todayLoading ? '' : `${todayFiles.length} files`}
+          detail={todayLoading ? '' : `${todaySlates.length} slates`}
         />
-        <TodayCard files={todayFiles} loading={todayLoading} onFileTap={onFileTap} />
+        <TodayCard slates={todaySlates} loading={todayLoading} onFileTap={onFileTap} selectedDate={selectedDate} />
 
         {/* Recent */}
         <div className="h-[22px]" />
