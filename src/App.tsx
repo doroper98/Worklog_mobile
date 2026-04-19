@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 import { ThemeProvider } from '@/components/primitives/ThemeProvider'
 import { AuthGate } from '@/components/AuthGate'
@@ -7,6 +7,7 @@ import { WikiCategory } from '@/components/WikiCategory'
 import { CalendarView } from '@/components/CalendarView'
 import { MarkdownView } from '@/components/MarkdownView'
 import { SlateView } from '@/components/SlateView'
+import { SlateMetaView } from '@/components/SlateMetaView'
 import { SearchView } from '@/components/SearchView'
 import { QuickMemoSheet } from '@/components/QuickMemoSheet'
 import { SettingsView } from '@/components/SettingsView'
@@ -17,6 +18,7 @@ import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
 import { useOnline } from '@/hooks/useOnline'
+import { useMetaIndex } from '@/hooks/useMetaIndex'
 
 // ─── View state ─────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ type ViewState =
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
   | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' }
+  | { view: 'slateMeta'; slateId: string; slateTitle: string; from: 'home' | 'calendar' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
@@ -40,6 +43,17 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   // Separate followup-type slates from regular slates (followups shown in Follow up section)
   const todaySlates = allSlates.filter((s) => s.type !== 'followup')
   const online = useOnline()
+  const { isIngested, loading: metaLoading } = useMetaIndex()
+
+  // Build set of ingested slate IDs from current slates
+  const ingestedIds = useMemo(() => {
+    if (metaLoading) return new Set<string>()
+    const ids = new Set<string>()
+    for (const s of allSlates) {
+      if (isIngested(s.id)) ids.add(s.id)
+    }
+    return ids
+  }, [allSlates, isIngested, metaLoading])
 
   const handleCategoryTap = useCallback((key: string) => {
     setViewState({ view: 'category', key })
@@ -59,6 +73,11 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     setViewState({ view: 'slate', slate, from })
   }, [viewState.view])
 
+  const handleMdTap = useCallback((slate: SlateEntry) => {
+    const from = viewState.view === 'calendar' ? 'calendar' as const : 'home' as const
+    setViewState({ view: 'slateMeta', slateId: slate.id, slateTitle: slate.title, from })
+  }, [viewState.view])
+
   const handleBack = useCallback(() => {
     clearDocument()
     if (viewState.view === 'document') {
@@ -69,7 +88,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       } else {
         setViewState({ view: 'home' })
       }
-    } else if (viewState.view === 'slate') {
+    } else if (viewState.view === 'slate' || viewState.view === 'slateMeta') {
       if (viewState.from === 'calendar') {
         setViewState({ view: 'calendar' })
       } else {
@@ -103,7 +122,29 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     setMemoOpen(false)
   }, [])
 
+  // Handle wiki page tap from SlateMetaView
+  const handleWikiTap = useCallback((path: string) => {
+    setViewState({ view: 'document', path, from: 'home' })
+    loadDocument(path)
+  }, [loadDocument])
+
   // Render current view
+  if (viewState.view === 'slateMeta') {
+    return (
+      <>
+        <SlateMetaView
+          slateId={viewState.slateId}
+          slateTitle={viewState.slateTitle}
+          onBack={handleBack}
+          onWikiTap={handleWikiTap}
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
+    )
+  }
+
   if (viewState.view === 'slate') {
     return (
       <>
@@ -198,8 +239,10 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}
         offline={!online}
+        ingestedIds={ingestedIds}
         onCategoryTap={handleCategoryTap}
         onSlateTap={handleSlateTap}
+        onMdTap={handleMdTap}
         onSearchTap={handleSearchTap}
         onTabSelect={handleTabSelect}
         onFabTap={handleFabTap}

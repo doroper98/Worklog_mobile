@@ -23,9 +23,12 @@ interface HomeViewProps {
   onSelectDate: (dateStr: string) => void
   /** Offline */
   offline?: boolean
+  /** Meta-index: ingested slate IDs */
+  ingestedIds?: Set<string>
   /** Actions */
   onCategoryTap: (key: string) => void
   onSlateTap: (slate: SlateEntry) => void
+  onMdTap?: (slate: SlateEntry) => void
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
   onFabTap?: () => void
@@ -330,11 +333,15 @@ function WeekStrip({
 function TodayCard({
   slates,
   loading,
+  ingestedIds,
   onSlateTap,
+  onMdTap,
 }: {
   slates: SlateEntry[]
   loading: boolean
+  ingestedIds?: Set<string>
   onSlateTap: (slate: SlateEntry) => void
+  onMdTap?: (slate: SlateEntry) => void
 }) {
   if (loading) {
     return (
@@ -379,26 +386,44 @@ function TodayCard({
     >
       {slates.map((slate, i) => {
         const meta = SLATE_TYPE_META[slate.type] ?? SLATE_TYPE_META.memo
+        const hasIngest = ingestedIds?.has(slate.id) ?? false
+        // Extract time from createdAt (HH:MM)
+        let timeStr = ''
+        try {
+          const d = new Date(slate.createdAt)
+          if (!isNaN(d.getTime())) {
+            timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+          }
+        } catch { /* ignore */ }
+
         return (
-          <button
+          <div
             key={slate.id}
-            onClick={() => onSlateTap(slate)}
-            className="flex w-full items-center gap-2.5 border-none bg-transparent px-3.5 py-2.5 text-left"
+            className="flex w-full items-center gap-2.5 px-3.5 py-2.5"
             style={{
               borderBottom: i < slates.length - 1 ? '1px solid var(--color-hairline)' : 'none',
-              cursor: 'pointer',
               minHeight: 40,
             }}
           >
-            <div
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-              style={{
-                background: `color-mix(in srgb, var(${meta.colorVar}) 12%, transparent)`,
-              }}
-            >
-              <Icon name={meta.icon} size={14} color={`var(${meta.colorVar})`} sw={1.8} />
+            {/* Color dot + time */}
+            <div className="flex flex-shrink-0 flex-col items-center gap-0.5" style={{ width: 40 }}>
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: `var(${meta.colorVar})` }}
+              />
+              {timeStr && (
+                <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
+                  {timeStr}
+                </span>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
+
+            {/* Title (tappable to open slate) */}
+            <button
+              onClick={() => onSlateTap(slate)}
+              className="min-w-0 flex-1 border-none bg-transparent p-0 text-left"
+              style={{ cursor: 'pointer' }}
+            >
               <div
                 className="truncate text-[13.5px] font-medium"
                 style={{ color: 'var(--color-text)', letterSpacing: '-0.015em' }}
@@ -408,8 +433,26 @@ function TodayCard({
               <div className="mt-0.5 text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
                 {meta.label}
               </div>
-            </div>
-          </button>
+            </button>
+
+            {/* MD badge */}
+            {hasIngest && onMdTap && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMdTap(slate)
+                }}
+                className="flex-shrink-0 rounded-md border-none px-2 py-1 font-mono text-[11px] font-bold"
+                style={{
+                  background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+                  color: 'var(--color-accent)',
+                  cursor: 'pointer',
+                }}
+              >
+                MD
+              </button>
+            )}
+          </div>
         )
       })}
     </div>
@@ -583,8 +626,10 @@ export function HomeView({
   daysWithFiles,
   onSelectDate,
   offline = false,
+  ingestedIds,
   onCategoryTap,
   onSlateTap,
+  onMdTap,
   onSearchTap,
   onTabSelect,
   onFabTap,
@@ -635,7 +680,7 @@ export function HomeView({
           title={sectionTitle}
           detail={todayLoading ? '' : `${todaySlates.length} slates`}
         />
-        <TodayCard slates={todaySlates} loading={todayLoading} onSlateTap={onSlateTap} />
+        <TodayCard slates={todaySlates} loading={todayLoading} ingestedIds={ingestedIds} onSlateTap={onSlateTap} onMdTap={onMdTap} />
 
         {/* Follow up */}
         {todayFollowups.length > 0 && (
