@@ -138,24 +138,46 @@ export const CalendarService = {
 
       if (!Array.isArray(file) && file.content) {
         const decoded = decodeBase64Utf8(file.content)
-        const json = JSON.parse(decoded) as {
-          slates: { id: string; type: string; title: string; createdAt: string; updatedAt: string }[]
+        const json = JSON.parse(decoded) as Record<string, unknown>
+
+        // Support multiple JSON structures:
+        // v3: { slates: [...] }
+        // v2: { entries: [...] }
+        // legacy: top-level array
+        let rawSlates: Record<string, unknown>[]
+
+        if (Array.isArray(json)) {
+          rawSlates = json as Record<string, unknown>[]
+        } else if (Array.isArray(json.slates)) {
+          rawSlates = json.slates as Record<string, unknown>[]
+        } else if (Array.isArray(json.entries)) {
+          rawSlates = json.entries as Record<string, unknown>[]
+        } else {
+          // Log unknown structure for debugging
+          console.warn(`[CalendarService] Unknown JSON structure for ${path}:`, Object.keys(json))
+          rawSlates = []
         }
 
-        const slates: SlateEntry[] = (json.slates ?? []).map((s: Record<string, string>) => ({
-          id: s.id,
-          type: s.type,
-          title: s.title,
-          content: s.content ?? '',
-          createdAt: s.createdAt,
-          updatedAt: s.updatedAt,
+        const slates: SlateEntry[] = rawSlates.map((s) => ({
+          id: String(s.id ?? ''),
+          type: String(s.type ?? 'memo'),
+          title: String(s.title ?? s.name ?? ''),
+          content: String(s.content ?? s.body ?? s.text ?? ''),
+          createdAt: String(s.createdAt ?? s.created_at ?? s.date ?? ''),
+          updatedAt: String(s.updatedAt ?? s.updated_at ?? s.date ?? ''),
         }))
 
         slateCache.set(path, slates)
         return slates
+      } else {
+        console.warn(`[CalendarService] No content in response for ${path}`)
       }
-    } catch {
-      // File not found or parse error
+    } catch (err) {
+      // Only silence 404 errors, log everything else
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('404')) {
+        console.error(`[CalendarService] Error fetching ${path}:`, msg)
+      }
     }
 
     return []
@@ -211,17 +233,11 @@ export const CalendarService = {
   },
 
   /** Get pending followup items for a specific date */
-  async getFollowupsForDate(dateStr: string): Promise<FollowupItem[]> {
+  async getPendingFollowupsForDate(dateStr: string): Promise<FollowupItem[]> {
     const { items } = await this.fetchFollowups()
     return items.filter(
       (it) => !it.completed && it.status !== 'done' && it.sourceDate === dateStr,
     )
-  },
-
-  /** Get all followup items regardless of date or status */
-  async getAllFollowups(): Promise<FollowupItem[]> {
-    const { items } = await this.fetchFollowups()
-    return items
   },
 
   /** Invalidate cache for a specific month */
