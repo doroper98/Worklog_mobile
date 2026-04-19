@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import type { WikiCategory } from '@/hooks/useWikiTree'
-import type { SlateEntry } from '@/services/CalendarService'
+import type { SlateEntry, FollowupItem } from '@/services/CalendarService'
 import type { RecentDoc } from '@/hooks/useRecentDocs'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import {
@@ -18,6 +18,7 @@ interface HomeViewProps {
   /** Today slates */
   selectedDate: string
   todaySlates: SlateEntry[]
+  todayFollowups: FollowupItem[]
   todayLoading: boolean
   daysWithFiles: Set<number>
   onSelectDate: (dateStr: string) => void
@@ -372,6 +373,53 @@ function TodayCard({
   )
 }
 
+// ─── Followup list ──────────────────────────────────────────────────────
+
+function FollowupList({ items }: { items: FollowupItem[] }) {
+  if (items.length === 0) return null
+
+  return (
+    <div
+      className="mx-4 overflow-hidden rounded-[18px] border"
+      style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
+    >
+      {items.map((item, i) => (
+        <div
+          key={item.id}
+          className="flex items-start gap-2.5 px-3.5 py-2.5"
+          style={{
+            borderBottom: i < items.length - 1 ? '1px solid var(--color-hairline)' : 'none',
+            minHeight: 40,
+          }}
+        >
+          <span
+            className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
+            style={{ background: 'var(--color-danger)' }}
+          />
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[13px] font-medium leading-snug"
+              style={{ color: 'var(--color-text)' }}
+            >
+              {item.description}
+            </div>
+            <div className="mt-0.5 flex items-center gap-2">
+              <span className="font-mono text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                {item.sourceDate}
+              </span>
+              {item.dueDate && (
+                <span className="font-mono text-[10px]" style={{ color: 'var(--color-danger)' }}>
+                  ~{item.dueDate}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Recent list ────────────────────────────────────────────────────────
 
 function RecentList({
@@ -571,6 +619,7 @@ export function HomeView({
   loading,
   selectedDate,
   todaySlates,
+  todayFollowups,
   todayLoading,
   daysWithFiles,
   onSelectDate,
@@ -631,6 +680,15 @@ export function HomeView({
           detail={todayLoading ? '' : `${todaySlates.length} slates`}
         />
         <TodayCard slates={todaySlates} loading={todayLoading} onSlateTap={onSlateTap} />
+
+        {/* Follow up */}
+        {todayFollowups.length > 0 && (
+          <>
+            <div className="h-[22px]" />
+            <SectionHeader title="Follow up" detail={`${todayFollowups.length}`} />
+            <FollowupList items={todayFollowups} />
+          </>
+        )}
 
         {/* Recent */}
         <div className="h-[22px]" />

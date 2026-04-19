@@ -51,8 +51,8 @@ const cache = new Map<string, MonthData>()
 /** Cache for parsed slates keyed by file path */
 const slateCache = new Map<string, SlateEntry[]>()
 
-/** Cache for followup dates */
-let followupCache: { dates: Set<string>; fetchedAt: number } | null = null
+/** Cache for followup data */
+let followupCache: { items: FollowupItem[]; dates: Set<string>; fetchedAt: number } | null = null
 
 /**
  * CalendarService — fetches journals/YYYY/MM/ tree to determine
@@ -161,12 +161,13 @@ export const CalendarService = {
     return []
   },
 
-  /** Fetch followup dates (days with incomplete followups) */
-  async getFollowupDates(): Promise<Set<string>> {
+  /** Fetch and cache all followup items */
+  async fetchFollowups(): Promise<{ items: FollowupItem[]; dates: Set<string> }> {
     if (followupCache && Date.now() - followupCache.fetchedAt < CACHE_TTL) {
-      return followupCache.dates
+      return followupCache
     }
 
+    const items: FollowupItem[] = []
     const dates = new Set<string>()
 
     try {
@@ -175,14 +176,23 @@ export const CalendarService = {
       if (!Array.isArray(file) && file.content) {
         const decoded = decodeBase64Utf8(file.content)
         const json = JSON.parse(decoded) as {
-          items: { sourceDate: string; completed: boolean; status: string }[]
+          items: {
+            id: string; description: string; sourceDate: string
+            status: string; completed: boolean; dueDate: string | null
+          }[]
         }
 
-        for (const item of json.items ?? []) {
-          if (!item.completed && item.status !== 'done') {
-            if (item.sourceDate) {
-              dates.add(item.sourceDate)
-            }
+        for (const raw of json.items ?? []) {
+          items.push({
+            id: raw.id,
+            description: raw.description,
+            sourceDate: raw.sourceDate,
+            status: raw.status,
+            completed: raw.completed,
+            dueDate: raw.dueDate,
+          })
+          if (!raw.completed && raw.status !== 'done' && raw.sourceDate) {
+            dates.add(raw.sourceDate)
           }
         }
       }
@@ -190,8 +200,22 @@ export const CalendarService = {
       // File not found or parse error
     }
 
-    followupCache = { dates, fetchedAt: Date.now() }
+    followupCache = { items, dates, fetchedAt: Date.now() }
+    return { items, dates }
+  },
+
+  /** Get dates with pending followups (for calendar dots) */
+  async getFollowupDates(): Promise<Set<string>> {
+    const { dates } = await this.fetchFollowups()
     return dates
+  },
+
+  /** Get pending followup items for a specific date */
+  async getFollowupsForDate(dateStr: string): Promise<FollowupItem[]> {
+    const { items } = await this.fetchFollowups()
+    return items.filter(
+      (it) => !it.completed && it.status !== 'done' && it.sourceDate === dateStr,
+    )
   },
 
   /** Invalidate cache for a specific month */

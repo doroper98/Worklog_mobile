@@ -24,7 +24,11 @@ export function MarkdownView({ title, path, content, loading, onBack }: Markdown
       style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
     >
       {/* Header — glass level 1 */}
-      <LiquidGlassSurface level={1} className="relative z-10 px-4 pb-3 pt-16">
+      <LiquidGlassSurface
+        level={1}
+        className="relative z-10 px-4 pb-3"
+        style={{ paddingTop: 'calc(16px + var(--sai-top, 0px))' }}
+      >
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}

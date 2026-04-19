@@ -37,7 +37,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const [memoOpen, setMemoOpen] = useState(false)
   const { categories, loading: treeLoading } = useWikiTree()
   const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
-  const { slates: todaySlates, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
+  const { slates: todaySlates, followups: todayFollowups, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
   const { recentDocs, recordAccess } = useRecentDocs()
   const online = useOnline()
 
@@ -178,6 +178,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         loading={treeLoading}
         selectedDate={selectedDate}
         todaySlates={todaySlates}
+        todayFollowups={todayFollowups}
         todayLoading={todayLoading}
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}

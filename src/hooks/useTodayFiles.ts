@@ -1,21 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 
 import { CalendarService } from '@/services/CalendarService'
-import type { DayFile, SlateEntry } from '@/services/CalendarService'
+import type { DayFile, SlateEntry, FollowupItem } from '@/services/CalendarService'
 import { formatDate } from '@/utils/calendarUtils'
 
 interface UseTodayFilesResult {
-  /** Files for the selected date */
   files: DayFile[]
-  /** Parsed slates for the selected date */
   slates: SlateEntry[]
-  /** Set of day numbers with files for the current week's month */
+  followups: FollowupItem[]
   daysWithFiles: Set<number>
-  /** Currently selected date string (YYYY-MM-DD) */
   selectedDate: string
-  /** Select a different date */
   selectDate: (dateStr: string) => void
-  /** Whether data is loading */
   loading: boolean
 }
 
@@ -23,6 +18,7 @@ export function useTodayFiles(): UseTodayFilesResult {
   const [selectedDate, setSelectedDate] = useState(() => formatDate(new Date()))
   const [files, setFiles] = useState<DayFile[]>([])
   const [slates, setSlates] = useState<SlateEntry[]>([])
+  const [followups, setFollowups] = useState<FollowupItem[]>([])
   const [daysWithFiles, setDaysWithFiles] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
 
@@ -31,20 +27,21 @@ export function useTodayFiles(): UseTodayFilesResult {
     try {
       const [y, m] = dateStr.split('-').map(Number)
       const day = parseInt(dateStr.split('-')[2], 10)
-      const data = await CalendarService.getMonthData(y, m)
+
+      const [data, daySlates, dayFollowups] = await Promise.all([
+        CalendarService.getMonthData(y, m),
+        CalendarService.getSlatesForDay(y, m, day),
+        CalendarService.getFollowupsForDate(dateStr),
+      ])
+
       setDaysWithFiles(data.daysWithFiles)
       setFiles(data.filesByDay.get(day) ?? [])
-
-      // Fetch slates if day has files
-      if (data.daysWithFiles.has(day)) {
-        const daySlates = await CalendarService.getSlatesForDay(y, m, day)
-        setSlates(daySlates)
-      } else {
-        setSlates([])
-      }
+      setSlates(daySlates)
+      setFollowups(dayFollowups)
     } catch {
       setFiles([])
       setSlates([])
+      setFollowups([])
       setDaysWithFiles(new Set())
     } finally {
       setLoading(false)
@@ -59,5 +56,5 @@ export function useTodayFiles(): UseTodayFilesResult {
     setSelectedDate(dateStr)
   }, [])
 
-  return { files, slates, daysWithFiles, selectedDate, selectDate, loading }
+  return { files, slates, followups, daysWithFiles, selectedDate, selectDate, loading }
 }

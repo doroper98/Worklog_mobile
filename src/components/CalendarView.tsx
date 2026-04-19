@@ -3,6 +3,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { useCalendarMonth } from '@/hooks/useCalendarMonth'
+import { CalendarService } from '@/services/CalendarService'
 import type { SlateEntry } from '@/services/CalendarService'
 import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/utils/calendarUtils'
 
@@ -396,7 +397,6 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarView
   const {
     year, month,
     daysWithFiles, followupDates,
-    getSlatesForDay,
     prevMonth, nextMonth, goToday,
     loading,
   } = useCalendarMonth()
@@ -410,19 +410,14 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarView
   const now = new Date()
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
 
-  // Fetch slates when selected date changes
-  const selectedDay = parseInt(selectedDate.split('-')[2], 10)
-  const selectedMonth = parseInt(selectedDate.split('-')[1], 10)
-
+  // Fetch slates directly from selectedDate (independent of calendar view month)
   useEffect(() => {
-    if (loading || selectedMonth !== month) {
-      return
-    }
+    const [sy, sm, sd] = selectedDate.split('-').map(Number)
 
     let cancelled = false
     setSlateLoading(true)
 
-    getSlatesForDay(selectedDay)
+    CalendarService.getSlatesForDay(sy, sm, sd)
       .then((result) => {
         if (!cancelled) setSlates(result)
       })
@@ -434,7 +429,7 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarView
       })
 
     return () => { cancelled = true }
-  }, [selectedDay, selectedMonth, month, loading, getSlatesForDay])
+  }, [selectedDate])
 
   const handleSelectDate = useCallback((dateStr: string, isCurrent: boolean) => {
     if (!isCurrent) {
