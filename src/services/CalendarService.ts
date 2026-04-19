@@ -79,7 +79,7 @@ export const CalendarService = {
     return data
   },
 
-  /** Fetch from GitHub API */
+  /** Fetch from GitHub API — verifies each file has actual slates */
   async fetchMonthData(year: number, month: number): Promise<MonthData> {
     const mm = String(month).padStart(2, '0')
     const path = `journals/${year}/${mm}`
@@ -91,33 +91,43 @@ export const CalendarService = {
       const entries = await GitHubClient.getContents(path)
 
       if (Array.isArray(entries)) {
-        console.log(`[Month] ${path} → ${entries.length} entries:`, entries.map((e: { name: string; type: string }) => `${e.name}(${e.type})`))
+        // Collect candidate days from directory listing
+        const candidates: { day: number; entry: DayFile }[] = []
+
         for (const entry of entries) {
           if (entry.type !== 'file') continue
-
-          // Extract day from filename: DD.json
           const dayMatch = entry.name.match(/^(\d{2})\.json$/)
           if (!dayMatch) continue
-
           const day = parseInt(dayMatch[1], 10)
           if (day < 1 || day > 31) continue
+          candidates.push({ day, entry: { name: entry.name, path: entry.path, sha: entry.sha } })
+        }
 
-          daysWithFiles.add(day)
+        // Fetch each file in parallel to check actual slate count
+        const checks = await Promise.allSettled(
+          candidates.map(async ({ day, entry }) => {
+            const slates = await this.getSlatesForDay(year, month, day)
+            return { day, entry, slateCount: slates.length }
+          }),
+        )
+
+        for (const result of checks) {
+          if (result.status !== 'fulfilled') continue
+          const { day, entry, slateCount } = result.value
+
+          // Only mark days that have actual slates
+          if (slateCount > 0) {
+            daysWithFiles.add(day)
+          }
 
           const existing = filesByDay.get(day) ?? []
-          existing.push({
-            name: entry.name,
-            path: entry.path,
-            sha: entry.sha,
-          })
+          existing.push(entry)
           filesByDay.set(day, existing)
         }
-        console.log(`[Month] daysWithFiles:`, [...daysWithFiles].sort((a, b) => a - b))
       }
     } catch (err) {
-      // 404 means no files for this month — not an error
       if (err instanceof Error && err.message.includes('404')) {
-        // Empty month, return empty data
+        // Empty month
       } else {
         throw err
       }
@@ -133,10 +143,7 @@ export const CalendarService = {
     const path = `journals/${year}/${mm}/${dd}.json`
 
     const cached = slateCache.get(path)
-    if (cached) {
-      console.log(`[Slate] cache hit ${path} → ${cached.length} slates`)
-      return cached
-    }
+    if (cached) return cached
 
     try {
       const file = await GitHubClient.getContents(path)
@@ -145,12 +152,7 @@ export const CalendarService = {
         const decoded = decodeBase64Utf8(file.content)
         const json = JSON.parse(decoded) as Record<string, unknown>
 
-        console.log(`[Slate] ${path} keys:`, Object.keys(json))
-
-        // Support multiple JSON structures:
-        // v3: { slates: [...] }
-        // v2: { entries: [...] }
-        // legacy: top-level array
+        // Support multiple JSON structures
         let rawSlates: Record<string, unknown>[]
 
         if (Array.isArray(json)) {
@@ -160,13 +162,7 @@ export const CalendarService = {
         } else if (Array.isArray(json.entries)) {
           rawSlates = json.entries as Record<string, unknown>[]
         } else {
-          console.warn(`[Slate] Unknown structure for ${path}:`, Object.keys(json))
           rawSlates = []
-        }
-
-        console.log(`[Slate] ${path} → ${rawSlates.length} raw slates`)
-        if (rawSlates.length > 0) {
-          console.log(`[Slate] first item keys:`, Object.keys(rawSlates[0]))
         }
 
         const slates: SlateEntry[] = rawSlates.map((s) => ({
@@ -180,14 +176,9 @@ export const CalendarService = {
 
         slateCache.set(path, slates)
         return slates
-      } else {
-        console.warn(`[Slate] No content in response for ${path}`, file)
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!msg.includes('404')) {
-        console.error(`[Slate] Error fetching ${path}:`, msg)
-      }
+    } catch {
+      // 404 or parse error — return empty
     }
 
     return []
