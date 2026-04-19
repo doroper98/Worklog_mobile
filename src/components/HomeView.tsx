@@ -4,7 +4,6 @@ import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import type { WikiCategory } from '@/hooks/useWikiTree'
 import type { SlateEntry, FollowupItem } from '@/services/CalendarService'
-import type { RecentDoc } from '@/hooks/useRecentDocs'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import {
   formatDate, getToday, DOW_LABELS,
@@ -22,13 +21,10 @@ interface HomeViewProps {
   todayLoading: boolean
   daysWithFiles: Set<number>
   onSelectDate: (dateStr: string) => void
-  /** Recent docs */
-  recentDocs: RecentDoc[]
   /** Offline */
   offline?: boolean
   /** Actions */
   onCategoryTap: (key: string) => void
-  onFileTap: (path: string) => void
   onSlateTap: (slate: SlateEntry) => void
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
@@ -47,15 +43,6 @@ const CATEGORY_META: Record<string, { icon: 'users' | 'folder' | 'alert' | 'file
   projects: { icon: 'folder', colorVar: '--color-task' },
   issues:   { icon: 'alert',  colorVar: '--color-meet' },
   notes:    { icon: 'file',   colorVar: '--color-memo' },
-}
-
-const CATEGORY_COLOR_MAP: Record<string, string> = {
-  people: '--color-personal',
-  projects: '--color-task',
-  issues: '--color-meet',
-  notes: '--color-memo',
-  markdown: '--color-daily',
-  other: '--color-accent',
 }
 
 const TAB_ITEMS = [
@@ -420,90 +407,6 @@ function FollowupList({ items }: { items: FollowupItem[] }) {
   )
 }
 
-// ─── Recent list ────────────────────────────────────────────────────────
-
-function RecentList({
-  docs,
-  onFileTap,
-}: {
-  docs: RecentDoc[]
-  onFileTap: (path: string) => void
-}) {
-  if (docs.length === 0) {
-    return (
-      <div
-        className="mx-4 rounded-[18px] border p-5 text-center"
-        style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-      >
-        <div className="text-[13px] font-semibold" style={{ color: 'var(--color-text)' }}>
-          아직 열어본 문서가 없습니다
-        </div>
-        <div className="mt-1 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-          검색이나 Wiki에서 열면 여기에 최근 20개가 쌓입니다.
-        </div>
-      </div>
-    )
-  }
-
-  // Relative time label
-  const timeLabel = (ts: number) => {
-    const diff = Date.now() - ts
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return '방금'
-    if (mins < 60) return `${mins}m`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h`
-    const days = Math.floor(hrs / 24)
-    return `${days}d`
-  }
-
-  return (
-    <div
-      className="mx-4 overflow-hidden rounded-[18px] border"
-      style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
-    >
-      {docs.map((doc, i) => {
-        const colorVar = CATEGORY_COLOR_MAP[doc.category] ?? '--color-accent'
-        return (
-          <button
-            key={doc.path}
-            onClick={() => onFileTap(doc.path)}
-            className="flex w-full items-center gap-2.5 border-none bg-transparent px-3.5 py-2 text-left"
-            style={{
-              borderBottom: i < docs.length - 1 ? '1px solid var(--color-hairline)' : 'none',
-              cursor: 'pointer',
-              minHeight: 36,
-            }}
-          >
-            <span
-              className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-              style={{ background: `var(${colorVar})` }}
-            />
-            <span
-              className="w-14 flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              {doc.category}
-            </span>
-            <div
-              className="min-w-0 flex-1 truncate text-[13.5px] font-medium"
-              style={{ color: 'var(--color-text)', letterSpacing: '-0.015em' }}
-            >
-              {doc.name}
-            </div>
-            <span
-              className="flex-shrink-0 whitespace-nowrap font-mono text-[10px]"
-              style={{ color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}
-            >
-              {timeLabel(doc.accessedAt)}
-            </span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 // ─── Wiki grid ──────────────────────────────────────────────────────────
 
 function WikiGrid({ categories, loading, onTap }: {
@@ -623,10 +526,8 @@ export function HomeView({
   todayLoading,
   daysWithFiles,
   onSelectDate,
-  recentDocs,
   offline = false,
   onCategoryTap,
-  onFileTap,
   onSlateTap,
   onSearchTap,
   onTabSelect,
@@ -689,11 +590,6 @@ export function HomeView({
             <FollowupList items={todayFollowups} />
           </>
         )}
-
-        {/* Recent */}
-        <div className="h-[22px]" />
-        <SectionHeader title="최근 열어본 문서" detail={recentDocs.length > 0 ? `${recentDocs.length}` : undefined} />
-        <RecentList docs={recentDocs} onFileTap={onFileTap} />
 
         {/* Wiki */}
         <div className="h-[22px]" />

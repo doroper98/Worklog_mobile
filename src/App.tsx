@@ -16,7 +16,6 @@ import type { SlateEntry } from '@/services/CalendarService'
 import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
-import { useRecentDocs } from '@/hooks/useRecentDocs'
 import { useOnline } from '@/hooks/useOnline'
 
 // ─── View state ─────────────────────────────────────────────────────────
@@ -38,7 +37,6 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const { categories, loading: treeLoading } = useWikiTree()
   const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
   const { slates: todaySlates, followups: todayFollowups, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
-  const { recentDocs, recordAccess } = useRecentDocs()
   const online = useOnline()
 
   const handleCategoryTap = useCallback((key: string) => {
@@ -52,8 +50,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       : 'home' as const
     setViewState({ view: 'document', path, from })
     loadDocument(path)
-    recordAccess(path)
-  }, [loadDocument, recordAccess, viewState.view])
+  }, [loadDocument, viewState.view])
 
   const handleSlateTap = useCallback((slate: SlateEntry) => {
     const from = viewState.view === 'calendar' ? 'calendar' as const : 'home' as const
@@ -182,10 +179,8 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         todayLoading={todayLoading}
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}
-        recentDocs={recentDocs}
         offline={!online}
         onCategoryTap={handleCategoryTap}
-        onFileTap={handleFileTap}
         onSlateTap={handleSlateTap}
         onSearchTap={handleSearchTap}
         onTabSelect={handleTabSelect}
