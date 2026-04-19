@@ -42,11 +42,13 @@ export const GitHubClient = {
     return data.tree
   },
 
-  /** Get blob content (base64 decoded) */
+  /** Get blob content (base64 decoded as UTF-8) */
   async getBlob(sha: string): Promise<string> {
     const data = await request<{ content: string; encoding: string }>(`/git/blobs/${sha}`)
     if (data.encoding === 'base64') {
-      return atob(data.content.replace(/\n/g, ''))
+      const binary = atob(data.content.replace(/\n/g, ''))
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+      return new TextDecoder('utf-8').decode(bytes)
     }
     return data.content
   },

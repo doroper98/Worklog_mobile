@@ -28,11 +28,9 @@ export function useDocument(): UseDocumentResult {
     setError(null)
     try {
       const data = (await GitHubClient.getContents(path)) as FileContent
-      const content = atob(data.content.replace(/\n/g, ''))
-      // UTF-8 decode
-      const decoded = decodeURIComponent(
-        content.split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''),
-      )
+      const binary = atob(data.content.replace(/\n/g, ''))
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+      const decoded = new TextDecoder('utf-8').decode(bytes)
       setDocument({
         path: data.path,
         name: data.name.replace(/\.md$/, ''),

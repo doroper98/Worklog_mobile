@@ -1,5 +1,12 @@
 import { GitHubClient } from '@/services/GitHubClient'
 
+/** Decode base64 content from GitHub API as UTF-8 */
+function decodeBase64Utf8(base64: string): string {
+  const binary = atob(base64.replace(/\n/g, ''))
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
 export interface DayFile {
   name: string
   path: string
@@ -129,7 +136,7 @@ export const CalendarService = {
       const file = await GitHubClient.getContents(path)
 
       if (!Array.isArray(file) && file.content) {
-        const decoded = atob(file.content.replace(/\n/g, ''))
+        const decoded = decodeBase64Utf8(file.content)
         const json = JSON.parse(decoded) as {
           slates: { id: string; type: string; title: string; createdAt: string; updatedAt: string }[]
         }
@@ -164,7 +171,7 @@ export const CalendarService = {
       const file = await GitHubClient.getContents('config/followups.json')
 
       if (!Array.isArray(file) && file.content) {
-        const decoded = atob(file.content.replace(/\n/g, ''))
+        const decoded = decodeBase64Utf8(file.content)
         const json = JSON.parse(decoded) as {
           items: { sourceDate: string; completed: boolean; status: string }[]
         }
