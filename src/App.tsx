@@ -10,6 +10,8 @@ import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
+import { useTodayFiles } from '@/hooks/useTodayFiles'
+import { useRecentDocs } from '@/hooks/useRecentDocs'
 
 // ─── View state ─────────────────────────────────────────────────────────
 
@@ -25,6 +27,8 @@ function AuthenticatedShell() {
   const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
   const { categories, loading: treeLoading } = useWikiTree()
   const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
+  const { files: todayFiles, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
+  const { recentDocs, recordAccess } = useRecentDocs()
 
   const handleCategoryTap = useCallback((key: string) => {
     setViewState({ view: 'category', key })
@@ -36,7 +40,8 @@ function AuthenticatedShell() {
       : 'home' as const
     setViewState({ view: 'document', path, from })
     loadDocument(path)
-  }, [loadDocument, viewState.view])
+    recordAccess(path)
+  }, [loadDocument, recordAccess, viewState.view])
 
   const handleBack = useCallback(() => {
     clearDocument()
@@ -106,6 +111,12 @@ function AuthenticatedShell() {
     <HomeView
       categories={categories}
       loading={treeLoading}
+      selectedDate={selectedDate}
+      todayFiles={todayFiles}
+      todayLoading={todayLoading}
+      daysWithFiles={daysWithFiles}
+      onSelectDate={selectDate}
+      recentDocs={recentDocs}
       onCategoryTap={handleCategoryTap}
       onFileTap={handleFileTap}
       onSearchTap={handleSearchTap}
