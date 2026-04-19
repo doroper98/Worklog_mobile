@@ -20,6 +20,8 @@ interface HomeViewProps {
   todayFollowups: FollowupItem[]
   todayLoading: boolean
   daysWithFiles: Set<number>
+  /** Set of YYYY-MM-DD strings with pending followups */
+  followupDates?: Set<string>
   onSelectDate: (dateStr: string) => void
   /** Offline */
   offline?: boolean
@@ -146,10 +148,12 @@ function getWeekStart(dateStr: string): Date {
 function WeekStrip({
   selectedDate,
   daysWithFiles,
+  followupDates,
   onSelectDate,
 }: {
   selectedDate: string
   daysWithFiles: Set<number>
+  followupDates?: Set<string>
   onSelectDate: (dateStr: string) => void
 }) {
   const todayStr = getToday()
@@ -253,6 +257,8 @@ function WeekStrip({
               const isSun = i === 0
               const hasFile = daysWithFiles.has(dayNum)
 
+              const hasFollowup = followupDates?.has(dateStr) ?? false
+
               let bg = 'transparent'
               let txt = 'var(--color-text)'
               let labelColor = isSun ? 'var(--color-danger)' : 'var(--color-text-muted)'
@@ -300,6 +306,19 @@ function WeekStrip({
                     }}
                   >
                     {dayNum}
+                    {hasFollowup && (
+                      <span
+                        className="absolute"
+                        style={{
+                          top: 2,
+                          right: 2,
+                          width: 5,
+                          height: 5,
+                          borderRadius: '50%',
+                          background: '#ff3b30',
+                        }}
+                      />
+                    )}
                   </div>
                   <span
                     className="mt-0.5"
@@ -644,6 +663,7 @@ export function HomeView({
   daysWithFiles,
   onSelectDate,
   offline = false,
+  followupDates,
   ingestedIds,
   onCategoryTap,
   onSlateTap,
@@ -687,6 +707,7 @@ export function HomeView({
         <WeekStrip
           selectedDate={selectedDate}
           daysWithFiles={daysWithFiles}
+          followupDates={followupDates}
           onSelectDate={onSelectDate}
         />
       </div>

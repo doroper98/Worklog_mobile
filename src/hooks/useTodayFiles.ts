@@ -9,6 +9,8 @@ interface UseTodayFilesResult {
   slates: SlateEntry[]
   followups: FollowupItem[]
   daysWithFiles: Set<number>
+  /** Set of date strings (YYYY-MM-DD) that have pending followups */
+  followupDates: Set<string>
   selectedDate: string
   selectDate: (dateStr: string) => void
   loading: boolean
@@ -20,6 +22,7 @@ export function useTodayFiles(): UseTodayFilesResult {
   const [slates, setSlates] = useState<SlateEntry[]>([])
   const [followups, setFollowups] = useState<FollowupItem[]>([])
   const [daysWithFiles, setDaysWithFiles] = useState<Set<number>>(new Set())
+  const [followupDates, setFollowupDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
 
   const loadDate = useCallback(async (dateStr: string) => {
@@ -28,13 +31,15 @@ export function useTodayFiles(): UseTodayFilesResult {
       const [y, m] = dateStr.split('-').map(Number)
       const day = parseInt(dateStr.split('-')[2], 10)
 
-      const [data, daySlates, dayFollowups] = await Promise.all([
+      const [data, daySlates, dayFollowups, fuDates] = await Promise.all([
         CalendarService.getMonthData(y, m),
         CalendarService.getSlatesForDay(y, m, day),
         CalendarService.getPendingFollowupsForDate(dateStr),
+        CalendarService.getFollowupDates(),
       ])
 
       setDaysWithFiles(data.daysWithFiles)
+      setFollowupDates(fuDates)
       setFiles(data.filesByDay.get(day) ?? [])
       setSlates(daySlates)
 
@@ -45,12 +50,13 @@ export function useTodayFiles(): UseTodayFilesResult {
           id: s.id,
           description: s.title,
           sourceDate: dateStr,
-          status: s.title.startsWith('[완료]') ? 'done' : 'pending',
+          relatedDate: dateStr,
+          status: s.title.startsWith('[완료]') ? 'done' : 'todo',
           completed: s.title.startsWith('[완료]'),
           dueDate: null,
+          priority: 'medium',
         }))
-      // Config followups + slate followups (deduplicated by description is not needed, they're different sources)
-      const pendingSlateFollowups = slateFollowups.filter((f) => !f.completed)
+      const pendingSlateFollowups = slateFollowups.filter((f) => f.status === 'todo')
       setFollowups([...dayFollowups, ...pendingSlateFollowups])
     } catch {
       setFiles([])
@@ -70,5 +76,5 @@ export function useTodayFiles(): UseTodayFilesResult {
     setSelectedDate(dateStr)
   }, [])
 
-  return { files, slates, followups, daysWithFiles, selectedDate, selectDate, loading }
+  return { files, slates, followups, daysWithFiles, followupDates, selectedDate, selectDate, loading }
 }

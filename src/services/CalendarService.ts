@@ -71,9 +71,11 @@ export interface FollowupItem {
   id: string
   description: string
   sourceDate: string
+  relatedDate: string
   status: string
   completed: boolean
   dueDate: string | null
+  priority: string
 }
 
 export interface MonthData {
@@ -223,26 +225,38 @@ export const CalendarService = {
     try {
       const file = await GitHubClient.getContents('config/followups.json')
 
-      if (!Array.isArray(file) && file.content) {
-        const decoded = decodeBase64Utf8(file.content)
+      let decoded: string | null = null
+      if (!Array.isArray(file)) {
+        if (file.content) {
+          decoded = decodeBase64Utf8(file.content)
+        } else if (file.sha) {
+          decoded = await GitHubClient.getBlob(file.sha)
+        }
+      }
+
+      if (decoded) {
         const json = JSON.parse(decoded) as {
-          items: {
-            id: string; description: string; sourceDate: string
-            status: string; completed: boolean; dueDate: string | null
-          }[]
+          items: Record<string, unknown>[]
         }
 
         for (const raw of json.items ?? []) {
-          items.push({
-            id: raw.id,
-            description: raw.description,
-            sourceDate: raw.sourceDate,
-            status: raw.status,
-            completed: raw.completed,
-            dueDate: raw.dueDate,
-          })
-          if (!raw.completed && raw.status !== 'done' && raw.sourceDate) {
-            dates.add(raw.sourceDate)
+          const item: FollowupItem = {
+            id: String(raw.id ?? ''),
+            description: String(raw.description ?? ''),
+            sourceDate: String(raw.sourceDate ?? ''),
+            relatedDate: String(raw.relatedDate ?? raw.sourceDate ?? ''),
+            status: String(raw.status ?? 'todo'),
+            completed: Boolean(raw.completed),
+            dueDate: raw.dueDate ? String(raw.dueDate) : null,
+            priority: String(raw.priority ?? 'medium'),
+          }
+          items.push(item)
+
+          // Collect dates for pending items — status='todo' is the sole criterion
+          if (item.status === 'todo') {
+            if (item.relatedDate) dates.add(item.relatedDate)
+            if (item.sourceDate) dates.add(item.sourceDate)
+            if (item.dueDate) dates.add(item.dueDate)
           }
         }
       }
@@ -260,11 +274,12 @@ export const CalendarService = {
     return dates
   },
 
-  /** Get pending followup items for a specific date */
+  /** Get pending followup items for a specific date (matches relatedDate, sourceDate, dueDate) */
   async getPendingFollowupsForDate(dateStr: string): Promise<FollowupItem[]> {
     const { items } = await this.fetchFollowups()
     return items.filter(
-      (it) => !it.completed && it.status !== 'done' && it.sourceDate === dateStr,
+      (it) => it.status === 'todo' &&
+        (it.relatedDate === dateStr || it.sourceDate === dateStr || it.dueDate === dateStr),
     )
   },
 
