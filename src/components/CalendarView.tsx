@@ -27,7 +27,8 @@ function TabBar({ active, onSelect }: { active: string; onSelect: (k: string) =>
   return (
     <LiquidGlassSurface
       level={2}
-      className="absolute bottom-3.5 left-3.5 right-3.5 z-40 flex h-16 items-center justify-around overflow-hidden rounded-tab px-1.5"
+      className="absolute left-3.5 right-3.5 z-40 flex h-16 items-center justify-around overflow-hidden rounded-tab px-1.5"
+      style={{ bottom: 'calc(14px + var(--sai-bottom, 0px))' }}
     >
       {TAB_ITEMS.map((t) => {
         const on = t.key === active
@@ -61,8 +62,9 @@ function FAB({ onTap }: { onTap?: () => void }) {
   return (
     <button
       onClick={onTap}
-      className="absolute bottom-[94px] right-[22px] z-[45] flex h-14 w-14 items-center justify-center rounded-fab border-none"
+      className="absolute right-[22px] z-[45] flex h-14 w-14 items-center justify-center rounded-fab border-none"
       style={{
+        bottom: 'calc(94px + var(--sai-bottom, 0px))',
         background: 'var(--color-accent)',
         color: 'var(--color-accent-text-on)',
         boxShadow: '0 10px 28px var(--color-accent-faint), 0 2px 8px rgba(0,0,0,0.18)',
@@ -412,7 +414,8 @@ export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewP
 
       {/* Content */}
       <div
-        className="relative z-[1] flex min-h-0 flex-1 flex-col pb-24 pt-14"
+        className="relative z-[1] flex min-h-0 flex-1 flex-col"
+        style={{ paddingTop: 'calc(56px + var(--sai-top, 0px))', paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
       >
         <CalendarHeader
           year={year}

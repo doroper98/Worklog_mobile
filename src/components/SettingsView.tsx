@@ -92,7 +92,8 @@ function TabBar({ active, onSelect }: { active: string; onSelect: (k: string) =>
   return (
     <LiquidGlassSurface
       level={2}
-      className="absolute bottom-3.5 left-3.5 right-3.5 z-40 flex h-16 items-center justify-around overflow-hidden rounded-tab px-1.5"
+      className="absolute left-3.5 right-3.5 z-40 flex h-16 items-center justify-around overflow-hidden rounded-tab px-1.5"
+      style={{ bottom: 'calc(14px + var(--sai-bottom, 0px))' }}
     >
       {TAB_ITEMS.map((t) => {
         const on = t.key === active
@@ -163,7 +164,10 @@ export function SettingsView({ onTabSelect, onLogout }: SettingsViewProps) {
       />
 
       {/* Scrollable content */}
-      <div className="relative z-[1] flex-1 overflow-auto pb-24 pt-14">
+      <div
+        className="relative z-[1] flex-1 overflow-auto"
+        style={{ paddingTop: 'calc(56px + var(--sai-top, 0px))', paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
+      >
         {/* Header */}
         <div className="px-5 pb-4 pt-3.5">
           <div
