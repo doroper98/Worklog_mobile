@@ -7,6 +7,32 @@ function decodeBase64Utf8(base64: string): string {
   return new TextDecoder('utf-8').decode(bytes)
 }
 
+/** Parse slates from decoded JSON string */
+function parseSlatesFromJson(jsonStr: string): SlateEntry[] {
+  const json = JSON.parse(jsonStr) as Record<string, unknown>
+
+  let rawSlates: Record<string, unknown>[]
+
+  if (Array.isArray(json)) {
+    rawSlates = json as Record<string, unknown>[]
+  } else if (Array.isArray(json.slates)) {
+    rawSlates = json.slates as Record<string, unknown>[]
+  } else if (Array.isArray(json.entries)) {
+    rawSlates = json.entries as Record<string, unknown>[]
+  } else {
+    return []
+  }
+
+  return rawSlates.map((s) => ({
+    id: String(s.id ?? ''),
+    type: String(s.type ?? 'memo'),
+    title: String(s.title ?? s.name ?? ''),
+    content: String(s.content ?? s.body ?? s.text ?? ''),
+    createdAt: String(s.createdAt ?? s.created_at ?? s.date ?? ''),
+    updatedAt: String(s.updatedAt ?? s.updated_at ?? s.date ?? ''),
+  }))
+}
+
 export interface DayFile {
   name: string
   path: string
@@ -127,37 +153,25 @@ export const CalendarService = {
     try {
       const file = await GitHubClient.getContents(path)
 
-      if (!Array.isArray(file) && file.content) {
-        const decoded = decodeBase64Utf8(file.content)
-        const json = JSON.parse(decoded) as Record<string, unknown>
+      let decoded: string | null = null
 
-        // Support multiple JSON structures
-        let rawSlates: Record<string, unknown>[]
-
-        if (Array.isArray(json)) {
-          rawSlates = json as Record<string, unknown>[]
-        } else if (Array.isArray(json.slates)) {
-          rawSlates = json.slates as Record<string, unknown>[]
-        } else if (Array.isArray(json.entries)) {
-          rawSlates = json.entries as Record<string, unknown>[]
-        } else {
-          rawSlates = []
+      if (!Array.isArray(file)) {
+        if (file.content) {
+          // Normal case: file < 1 MB, content is base64 inline
+          decoded = decodeBase64Utf8(file.content)
+        } else if (file.sha) {
+          // Large file (> 1 MB): content not inline, use Blob API
+          decoded = await GitHubClient.getBlob(file.sha)
         }
+      }
 
-        const slates: SlateEntry[] = rawSlates.map((s) => ({
-          id: String(s.id ?? ''),
-          type: String(s.type ?? 'memo'),
-          title: String(s.title ?? s.name ?? ''),
-          content: String(s.content ?? s.body ?? s.text ?? ''),
-          createdAt: String(s.createdAt ?? s.created_at ?? s.date ?? ''),
-          updatedAt: String(s.updatedAt ?? s.updated_at ?? s.date ?? ''),
-        }))
-
+      if (decoded) {
+        const slates = parseSlatesFromJson(decoded)
         slateCache.set(path, slates)
         return slates
       }
     } catch {
-      // 404 or parse error — return empty
+      // 404 or parse error
     }
 
     return []
