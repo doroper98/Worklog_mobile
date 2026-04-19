@@ -35,7 +35,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
   const [memoOpen, setMemoOpen] = useState(false)
   const { categories, loading: treeLoading } = useWikiTree()
-  const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
+  const { document, loading: docLoading, error: docError, loadDocument, clearDocument } = useDocument()
   const { slates: allSlates, followups: todayFollowups, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
   // Separate followup-type slates from regular slates (followups shown in Follow up section)
   const todaySlates = allSlates.filter((s) => s.type !== 'followup')
@@ -120,6 +120,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         path={viewState.path}
         content={document?.content ?? ''}
         loading={docLoading}
+        error={docError}
         onBack={handleBack}
       />
     )

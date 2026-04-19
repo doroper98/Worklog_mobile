@@ -28,9 +28,20 @@ export function useDocument(): UseDocumentResult {
     setError(null)
     try {
       const data = (await GitHubClient.getContents(path)) as FileContent
-      const binary = atob(data.content.replace(/\n/g, ''))
-      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
-      const decoded = new TextDecoder('utf-8').decode(bytes)
+      let decoded: string
+
+      if (data.content) {
+        // Normal case: file < 1 MB, content is base64 inline
+        const binary = atob(data.content.replace(/\n/g, ''))
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+        decoded = new TextDecoder('utf-8').decode(bytes)
+      } else if (data.sha) {
+        // Large file (> 1 MB): use Blob API
+        decoded = await GitHubClient.getBlob(data.sha)
+      } else {
+        throw new Error('파일 내용을 가져올 수 없습니다.')
+      }
+
       setDocument({
         path: data.path,
         name: data.name.replace(/\.md$/, ''),

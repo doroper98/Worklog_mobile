@@ -10,6 +10,7 @@ interface MarkdownViewProps {
   path: string
   content: string
   loading: boolean
+  error?: string | null
   onBack: () => void
 }
 
@@ -17,7 +18,7 @@ interface MarkdownViewProps {
  * Document viewer — maps to SlateDetail26 from handoff bundle.
  * Full-screen view with glass header and markdown body.
  */
-export function MarkdownView({ title, path, content, loading, onBack }: MarkdownViewProps) {
+export function MarkdownView({ title, path, content, loading, error, onBack }: MarkdownViewProps) {
   return (
     <div
       className="relative flex h-full flex-col overflow-hidden font-sans"
@@ -71,6 +72,16 @@ export function MarkdownView({ title, path, content, loading, onBack }: Markdown
                 }}
               />
             ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-dashed p-5 text-center"
+            style={{ borderColor: 'var(--color-danger)', background: 'var(--color-surface)' }}>
+            <div className="text-sm font-semibold" style={{ color: 'var(--color-danger)' }}>
+              문서를 불러올 수 없습니다
+            </div>
+            <div className="mt-1.5 font-mono text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+              {error}
+            </div>
           </div>
         ) : (
           <article className="ww-markdown">
