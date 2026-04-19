@@ -79,7 +79,7 @@ export const CalendarService = {
     return data
   },
 
-  /** Fetch from GitHub API — verifies each file has actual slates */
+  /** Fetch from GitHub API — directory listing only (1 API call) */
   async fetchMonthData(year: number, month: number): Promise<MonthData> {
     const mm = String(month).padStart(2, '0')
     const path = `journals/${year}/${mm}`
@@ -91,37 +91,16 @@ export const CalendarService = {
       const entries = await GitHubClient.getContents(path)
 
       if (Array.isArray(entries)) {
-        // Collect candidate days from directory listing
-        const candidates: { day: number; entry: DayFile }[] = []
-
         for (const entry of entries) {
           if (entry.type !== 'file') continue
           const dayMatch = entry.name.match(/^(\d{2})\.json$/)
           if (!dayMatch) continue
           const day = parseInt(dayMatch[1], 10)
           if (day < 1 || day > 31) continue
-          candidates.push({ day, entry: { name: entry.name, path: entry.path, sha: entry.sha } })
-        }
 
-        // Fetch each file in parallel to check actual slate count
-        const checks = await Promise.allSettled(
-          candidates.map(async ({ day, entry }) => {
-            const slates = await this.getSlatesForDay(year, month, day)
-            return { day, entry, slateCount: slates.length }
-          }),
-        )
-
-        for (const result of checks) {
-          if (result.status !== 'fulfilled') continue
-          const { day, entry, slateCount } = result.value
-
-          // Only mark days that have actual slates
-          if (slateCount > 0) {
-            daysWithFiles.add(day)
-          }
-
+          daysWithFiles.add(day)
           const existing = filesByDay.get(day) ?? []
-          existing.push(entry)
+          existing.push({ name: entry.name, path: entry.path, sha: entry.sha })
           filesByDay.set(day, existing)
         }
       }
