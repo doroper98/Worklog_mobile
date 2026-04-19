@@ -74,7 +74,7 @@ export const GitHubClient = {
   },
 
   /** Get latest commit SHA for a branch */
-  async getLatestCommitSha(branch = 'main'): Promise<string> {
+  async getLatestCommitSha(branch = 'master'): Promise<string> {
     const data = await request<{ object: { sha: string } }>(`/git/ref/heads/${branch}`)
     return data.object.sha
   },
