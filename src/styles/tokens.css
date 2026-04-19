@@ -1,0 +1,125 @@
+/*
+ * Design tokens extracted from claude-design-handoff/components/WW26Theme.jsx
+ * Light and Dark palettes only. Ant Design palette excluded per ADR-016.
+ */
+
+:root,
+[data-theme="light"] {
+  /* Base surfaces */
+  --color-bg: #F4F3EF;
+  --color-bg2: #EDEBE5;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #FAF9F6;
+  --color-surface-warm: #F2EFE8;
+
+  /* Borders */
+  --color-border: rgba(26, 27, 38, 0.08);
+  --color-border-strong: rgba(26, 27, 38, 0.14);
+  --color-hairline: rgba(26, 27, 38, 0.05);
+
+  /* Text */
+  --color-text: #1A1B26;
+  --color-text-sec: #4B4D60;
+  --color-text-muted: #8A8D9F;
+  --color-text-faint: #B8BAC7;
+
+  /* Accent */
+  --color-accent: #3D5AFE;
+  --color-accent-hover: #2F48D8;
+  --color-accent-soft: rgba(61, 90, 254, 0.08);
+  --color-accent-faint: rgba(61, 90, 254, 0.14);
+  --color-accent-text-on: #FFFFFF;
+
+  /* Category */
+  --color-meet: #C2456F;
+  --color-task: #3D5AFE;
+  --color-memo: #B07A1F;
+  --color-personal: #7A4FB5;
+  --color-daily: #2E7D57;
+
+  /* Semantic */
+  --color-danger: #D13E4C;
+  --color-success: #2E7D57;
+  --color-warning: #B07A1F;
+
+  /* Skeleton */
+  --color-skel: rgba(26, 27, 38, 0.07);
+  --color-skel2: rgba(26, 27, 38, 0.03);
+
+  /* Liquid Glass */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-sheet: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(26, 27, 38, 0.08);
+  --glass-shadow: 0 8px 32px rgba(26, 27, 38, 0.08), 0 1px 2px rgba(26, 27, 38, 0.04);
+  --glass-shadow-strong: 0 20px 60px rgba(26, 27, 38, 0.16), 0 4px 12px rgba(26, 27, 38, 0.06);
+  --glass-blur: 28px;
+  --glass-blur-strong: 40px;
+  --glass-saturate: 170%;
+  --glass-saturate-strong: 180%;
+  --scrim: rgba(26, 27, 38, 0.38);
+
+  /* Opaque fallback for no-blur environments */
+  --bg-opaque: #F4F3EF;
+  --glass-tint: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] {
+  /* Base surfaces */
+  --color-bg: #1A1B26;
+  --color-bg2: #13141C;
+  --color-surface: #24283B;
+  --color-surface-alt: #292E42;
+  --color-surface-warm: #2A2F48;
+
+  /* Borders */
+  --color-border: rgba(192, 202, 245, 0.08);
+  --color-border-strong: rgba(192, 202, 245, 0.14);
+  --color-hairline: rgba(192, 202, 245, 0.05);
+
+  /* Text */
+  --color-text: #C0CAF5;
+  --color-text-sec: #9AA1C1;
+  --color-text-muted: #565F89;
+  --color-text-faint: #414868;
+
+  /* Accent */
+  --color-accent: #7AA2F7;
+  --color-accent-hover: #8FB3FA;
+  --color-accent-soft: rgba(122, 162, 247, 0.14);
+  --color-accent-faint: rgba(122, 162, 247, 0.22);
+  --color-accent-text-on: #1A1B26;
+
+  /* Category */
+  --color-meet: #F7768E;
+  --color-task: #7AA2F7;
+  --color-memo: #E0AF68;
+  --color-personal: #BB9AF7;
+  --color-daily: #9ECE6A;
+
+  /* Semantic */
+  --color-danger: #F7768E;
+  --color-success: #9ECE6A;
+  --color-warning: #E0AF68;
+
+  /* Skeleton */
+  --color-skel: rgba(192, 202, 245, 0.08);
+  --color-skel2: rgba(192, 202, 245, 0.04);
+
+  /* Liquid Glass */
+  --glass-bg: rgba(30, 33, 50, 0.68);
+  --glass-bg-sheet: rgba(36, 40, 59, 0.85);
+  --glass-highlight: rgba(192, 202, 245, 0.10);
+  --glass-border: rgba(192, 202, 245, 0.10);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --glass-shadow-strong: 0 20px 60px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --glass-blur: 28px;
+  --glass-blur-strong: 40px;
+  --glass-saturate: 170%;
+  --glass-saturate-strong: 180%;
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  /* Opaque fallback */
+  --bg-opaque: #1A1B26;
+  --glass-tint: rgba(20, 20, 25, 0.7);
+}

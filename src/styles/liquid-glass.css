@@ -1,0 +1,116 @@
+/*
+ * Liquid Glass chrome — iOS 26 style backdrop-filter surfaces.
+ * Three levels matching WW26Theme.jsx:
+ *   Level 1: Search bar, week strip (blur 28px)
+ *   Level 2: Tab bar (blur 28px, elevated shadow)
+ *   Level 3: Bottom sheet (blur 40px)
+ *
+ * Fallbacks:
+ *   - @supports not (backdrop-filter) → opaque bg
+ *   - prefers-reduced-motion: reduce → no blur
+ *   - Low-end Android (via CSS custom property --glass-perf) → reduced blur
+ */
+
+.liquid-glass {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.liquid-glass-elevated {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-strong);
+}
+
+.liquid-glass-sheet {
+  position: relative;
+  background: var(--glass-bg-sheet);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate-strong));
+  border-top: 0.5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-strong);
+}
+
+/* Specular highlight — top edge glow */
+.liquid-glass-highlight {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass-highlight), transparent);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Scrim overlay for modals/sheets */
+.glass-scrim {
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ── Performance fallbacks ──────────────────────────────────── */
+
+/* No backdrop-filter support */
+@supports not (backdrop-filter: blur(20px)) {
+  .liquid-glass,
+  .liquid-glass-elevated,
+  .liquid-glass-sheet {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bg-opaque);
+  }
+
+  .glass-scrim {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass,
+  .liquid-glass-elevated,
+  .liquid-glass-sheet {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bg-opaque);
+  }
+
+  .glass-scrim {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Low-end device: reduced blur via JS-set custom property */
+[data-glass-perf="low"] .liquid-glass,
+[data-glass-perf="low"] .liquid-glass-elevated {
+  --glass-blur: 10px;
+}
+
+[data-glass-perf="low"] .liquid-glass-sheet {
+  --glass-blur-strong: 10px;
+}
+
+/* Very low-end: no blur at all */
+[data-glass-perf="none"] .liquid-glass,
+[data-glass-perf="none"] .liquid-glass-elevated,
+[data-glass-perf="none"] .liquid-glass-sheet {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--bg-opaque);
+}
+
+[data-glass-perf="none"] .glass-scrim {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
