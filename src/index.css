@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Full-height layout chain for mobile */
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 /* Safe area for iOS notch / home indicator */
 :root {
   --sai-top: env(safe-area-inset-top, 0px);
