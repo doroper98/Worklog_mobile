@@ -6,6 +6,7 @@ import { HomeView } from '@/components/HomeView'
 import { WikiCategory } from '@/components/WikiCategory'
 import { CalendarView } from '@/components/CalendarView'
 import { MarkdownView } from '@/components/MarkdownView'
+import { SearchView } from '@/components/SearchView'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import { useWikiTree } from '@/hooks/useWikiTree'
@@ -18,8 +19,9 @@ import { useRecentDocs } from '@/hooks/useRecentDocs'
 type ViewState =
   | { view: 'home' }
   | { view: 'calendar' }
+  | { view: 'search' }
   | { view: 'category'; key: string }
-  | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' }
+  | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
@@ -37,6 +39,7 @@ function AuthenticatedShell() {
   const handleFileTap = useCallback((path: string) => {
     const from = viewState.view === 'calendar' ? 'calendar' as const
       : viewState.view === 'category' ? 'category' as const
+      : viewState.view === 'search' ? 'search' as const
       : 'home' as const
     setViewState({ view: 'document', path, from })
     loadDocument(path)
@@ -48,6 +51,8 @@ function AuthenticatedShell() {
     if (viewState.view === 'document') {
       if (viewState.from === 'calendar') {
         setViewState({ view: 'calendar' })
+      } else if (viewState.from === 'search') {
+        setViewState({ view: 'search' })
       } else {
         setViewState({ view: 'home' })
       }
@@ -68,7 +73,7 @@ function AuthenticatedShell() {
   }, [clearDocument])
 
   const handleSearchTap = useCallback(() => {
-    // M5 will implement search
+    setViewState({ view: 'search' })
   }, [])
 
   // Render current view
@@ -103,6 +108,15 @@ function AuthenticatedShell() {
       <CalendarView
         onTabSelect={handleTabSelect}
         onFileTap={handleFileTap}
+      />
+    )
+  }
+
+  if (viewState.view === 'search') {
+    return (
+      <SearchView
+        onFileTap={handleFileTap}
+        onBack={handleBack}
       />
     )
   }
