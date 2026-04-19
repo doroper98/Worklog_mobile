@@ -91,6 +91,7 @@ export const CalendarService = {
       const entries = await GitHubClient.getContents(path)
 
       if (Array.isArray(entries)) {
+        console.log(`[Month] ${path} → ${entries.length} entries:`, entries.map((e: { name: string; type: string }) => `${e.name}(${e.type})`))
         for (const entry of entries) {
           if (entry.type !== 'file') continue
 
@@ -111,6 +112,7 @@ export const CalendarService = {
           })
           filesByDay.set(day, existing)
         }
+        console.log(`[Month] daysWithFiles:`, [...daysWithFiles].sort((a, b) => a - b))
       }
     } catch (err) {
       // 404 means no files for this month — not an error
@@ -131,7 +133,10 @@ export const CalendarService = {
     const path = `journals/${year}/${mm}/${dd}.json`
 
     const cached = slateCache.get(path)
-    if (cached) return cached
+    if (cached) {
+      console.log(`[Slate] cache hit ${path} → ${cached.length} slates`)
+      return cached
+    }
 
     try {
       const file = await GitHubClient.getContents(path)
@@ -139,6 +144,8 @@ export const CalendarService = {
       if (!Array.isArray(file) && file.content) {
         const decoded = decodeBase64Utf8(file.content)
         const json = JSON.parse(decoded) as Record<string, unknown>
+
+        console.log(`[Slate] ${path} keys:`, Object.keys(json))
 
         // Support multiple JSON structures:
         // v3: { slates: [...] }
@@ -153,9 +160,13 @@ export const CalendarService = {
         } else if (Array.isArray(json.entries)) {
           rawSlates = json.entries as Record<string, unknown>[]
         } else {
-          // Log unknown structure for debugging
-          console.warn(`[CalendarService] Unknown JSON structure for ${path}:`, Object.keys(json))
+          console.warn(`[Slate] Unknown structure for ${path}:`, Object.keys(json))
           rawSlates = []
+        }
+
+        console.log(`[Slate] ${path} → ${rawSlates.length} raw slates`)
+        if (rawSlates.length > 0) {
+          console.log(`[Slate] first item keys:`, Object.keys(rawSlates[0]))
         }
 
         const slates: SlateEntry[] = rawSlates.map((s) => ({
@@ -170,13 +181,12 @@ export const CalendarService = {
         slateCache.set(path, slates)
         return slates
       } else {
-        console.warn(`[CalendarService] No content in response for ${path}`)
+        console.warn(`[Slate] No content in response for ${path}`, file)
       }
     } catch (err) {
-      // Only silence 404 errors, log everything else
       const msg = err instanceof Error ? err.message : String(err)
       if (!msg.includes('404')) {
-        console.error(`[CalendarService] Error fetching ${path}:`, msg)
+        console.error(`[Slate] Error fetching ${path}:`, msg)
       }
     }
 
