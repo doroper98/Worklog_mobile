@@ -5,6 +5,7 @@ import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import type { WikiCategory } from '@/hooks/useWikiTree'
 import type { DayFile } from '@/services/CalendarService'
 import type { RecentDoc } from '@/hooks/useRecentDocs'
+import { OfflineBanner } from '@/components/OfflineBanner'
 import {
   formatDate, getToday, DOW_LABELS,
 } from '@/utils/calendarUtils'
@@ -22,6 +23,8 @@ interface HomeViewProps {
   onSelectDate: (dateStr: string) => void
   /** Recent docs */
   recentDocs: RecentDoc[]
+  /** Offline */
+  offline?: boolean
   /** Actions */
   onCategoryTap: (key: string) => void
   onFileTap: (path: string) => void
@@ -557,6 +560,7 @@ export function HomeView({
   daysWithFiles,
   onSelectDate,
   recentDocs,
+  offline = false,
   onCategoryTap,
   onFileTap,
   onSearchTap,
@@ -591,6 +595,7 @@ export function HomeView({
       <div className="relative z-[1] flex-1 overflow-auto pb-24 pt-14">
         <AppBar />
         <SearchPill onTap={onSearchTap} count={totalDocs} />
+        <OfflineBanner show={offline} />
 
         {/* Week strip */}
         <WeekStrip

@@ -8,12 +8,14 @@ import { CalendarView } from '@/components/CalendarView'
 import { MarkdownView } from '@/components/MarkdownView'
 import { SearchView } from '@/components/SearchView'
 import { QuickMemoSheet } from '@/components/QuickMemoSheet'
+import { SettingsView } from '@/components/SettingsView'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
 import { useRecentDocs } from '@/hooks/useRecentDocs'
+import { useOnline } from '@/hooks/useOnline'
 
 // ─── View state ─────────────────────────────────────────────────────────
 
@@ -21,18 +23,20 @@ type ViewState =
   | { view: 'home' }
   | { view: 'calendar' }
   | { view: 'search' }
+  | { view: 'settings' }
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
-function AuthenticatedShell() {
+function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
   const [memoOpen, setMemoOpen] = useState(false)
   const { categories, loading: treeLoading } = useWikiTree()
   const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
   const { files: todayFiles, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
   const { recentDocs, recordAccess } = useRecentDocs()
+  const online = useOnline()
 
   const handleCategoryTap = useCallback((key: string) => {
     setViewState({ view: 'category', key })
@@ -64,12 +68,12 @@ function AuthenticatedShell() {
   }, [viewState, clearDocument])
 
   const handleTabSelect = useCallback((tab: string) => {
+    clearDocument()
     if (tab === 'calendar') {
-      clearDocument()
       setViewState({ view: 'calendar' })
+    } else if (tab === 'settings') {
+      setViewState({ view: 'settings' })
     } else {
-      // M4+ will handle inbox, settings tabs
-      clearDocument()
       setViewState({ view: 'home' })
     }
   }, [clearDocument])
@@ -135,6 +139,15 @@ function AuthenticatedShell() {
     )
   }
 
+  if (viewState.view === 'settings') {
+    return (
+      <SettingsView
+        onTabSelect={handleTabSelect}
+        onLogout={onLogout}
+      />
+    )
+  }
+
   return (
     <>
       <HomeView
@@ -146,6 +159,7 @@ function AuthenticatedShell() {
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}
         recentDocs={recentDocs}
+        offline={!online}
         onCategoryTap={handleCategoryTap}
         onFileTap={handleFileTap}
         onSearchTap={handleSearchTap}
@@ -196,7 +210,7 @@ function AppShell() {
     return <AuthGate onAuthenticated={handleAuthenticated} />
   }
 
-  return <AuthenticatedShell />
+  return <AuthenticatedShell onLogout={() => setUser(null)} />
 }
 
 export function App() {
