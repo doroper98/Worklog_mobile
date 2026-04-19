@@ -11,6 +11,9 @@ import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
 interface SlateMetaViewProps {
   slateId: string
   slateTitle: string
+  /** Pre-generated markdown from CLI ingest */
+  slateMarkdown: string
+  /** Raw HTML content (fallback when markdown not available) */
   slateContent: string
   onBack: () => void
   onWikiTap: (path: string) => void
@@ -59,7 +62,7 @@ function EntityChip({
   )
 }
 
-export function SlateMetaView({ slateId, slateTitle, slateContent, onBack, onWikiTap, onTabSelect, onFabTap }: SlateMetaViewProps) {
+export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent, onBack, onWikiTap, onTabSelect, onFabTap }: SlateMetaViewProps) {
   const [entry, setEntry] = useState<MetaIndexEntry | null>(null)
   const [metaLoading, setMetaLoading] = useState(true)
 
@@ -69,7 +72,11 @@ export function SlateMetaView({ slateId, slateTitle, slateContent, onBack, onWik
       .finally(() => setMetaLoading(false))
   }, [slateId])
 
-  const markdownContent = useMemo(() => htmlToMarkdown(slateContent), [slateContent])
+  // Use pre-generated markdown if available, fallback to HTML→MD conversion
+  const markdownContent = useMemo(
+    () => slateMarkdown || htmlToMarkdown(slateContent),
+    [slateMarkdown, slateContent],
+  )
 
   return (
     <div

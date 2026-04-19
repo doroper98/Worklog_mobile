@@ -386,7 +386,7 @@ function TodayCard({
     >
       {slates.map((slate, i) => {
         const meta = SLATE_TYPE_META[slate.type] ?? SLATE_TYPE_META.memo
-        const hasIngest = ingestedIds?.has(slate.id) ?? false
+        const hasMd = Boolean(slate.markdown) || (ingestedIds?.has(slate.id) ?? false)
         // Extract time from createdAt (HH:MM)
         let timeStr = ''
         try {
@@ -436,7 +436,7 @@ function TodayCard({
             </button>
 
             {/* MD badge */}
-            {hasIngest && onMdTap && (
+            {hasMd && onMdTap && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()

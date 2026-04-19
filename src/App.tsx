@@ -135,6 +135,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         <SlateMetaView
           slateId={viewState.slate.id}
           slateTitle={viewState.slate.title}
+          slateMarkdown={viewState.slate.markdown}
           slateContent={viewState.slate.content}
           onBack={handleBack}
           onWikiTap={handleWikiTap}

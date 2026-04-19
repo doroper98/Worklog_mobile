@@ -28,6 +28,7 @@ function parseSlatesFromJson(jsonStr: string): SlateEntry[] {
     type: String(s.type ?? 'memo'),
     title: String(s.title ?? s.name ?? ''),
     content: String(s.content ?? s.body ?? s.text ?? ''),
+    markdown: String(s.markdown ?? ''),
     createdAt: String(s.createdAt ?? s.created_at ?? s.date ?? ''),
     updatedAt: String(s.updatedAt ?? s.updated_at ?? s.date ?? ''),
   }))
@@ -45,6 +46,8 @@ export interface SlateEntry {
   type: string
   title: string
   content: string
+  /** Pre-generated markdown body (from CLI ingest). May be empty if not yet ingested. */
+  markdown: string
   createdAt: string
   updatedAt: string
 }
