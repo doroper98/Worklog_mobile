@@ -34,11 +34,12 @@ interface HomeViewProps {
   onFabTap?: () => void
 }
 
-const SLATE_TYPE_META: Record<string, { icon: 'users' | 'folder' | 'file' | 'alert'; colorVar: string; label: string }> = {
-  meeting:  { icon: 'users',  colorVar: '--color-meet',     label: '회의' },
-  task:     { icon: 'folder', colorVar: '--color-task',     label: '업무' },
-  memo:     { icon: 'file',   colorVar: '--color-memo',     label: '메모' },
-  personal: { icon: 'alert', colorVar: '--color-personal', label: '개인' },
+const SLATE_TYPE_META: Record<string, { icon: 'users' | 'folder' | 'file' | 'alert' | 'calendar'; colorVar: string; label: string }> = {
+  meeting:  { icon: 'users',    colorVar: '--color-meet',     label: '회의' },
+  task:     { icon: 'folder',   colorVar: '--color-task',     label: '업무' },
+  memo:     { icon: 'file',     colorVar: '--color-memo',     label: '메모' },
+  personal: { icon: 'alert',    colorVar: '--color-personal', label: '개인' },
+  daily:    { icon: 'calendar', colorVar: '--color-task',     label: 'Daily MD' },
 }
 
 const CATEGORY_META: Record<string, { icon: 'users' | 'folder' | 'alert' | 'file'; colorVar: string }> = {
@@ -385,16 +386,19 @@ function TodayCard({
       style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
     >
       {slates.map((slate, i) => {
+        const isDaily = slate.type === 'daily'
         const meta = SLATE_TYPE_META[slate.type] ?? SLATE_TYPE_META.memo
         const hasMd = Boolean(slate.markdown) || (ingestedIds?.has(slate.id) ?? false)
         // Extract time from createdAt (HH:MM)
         let timeStr = ''
-        try {
-          const d = new Date(slate.createdAt)
-          if (!isNaN(d.getTime())) {
-            timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-          }
-        } catch { /* ignore */ }
+        if (!isDaily) {
+          try {
+            const d = new Date(slate.createdAt)
+            if (!isNaN(d.getTime())) {
+              timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+            }
+          } catch { /* ignore */ }
+        }
 
         return (
           <div
@@ -403,24 +407,36 @@ function TodayCard({
             style={{
               borderBottom: i < slates.length - 1 ? '1px solid var(--color-hairline)' : 'none',
               minHeight: 40,
+              background: isDaily ? 'color-mix(in srgb, #4caf50 5%, transparent)' : undefined,
             }}
           >
-            {/* Color dot + time */}
+            {/* Color dot + time (or DAILY label) */}
             <div className="flex flex-shrink-0 flex-col items-center gap-0.5" style={{ width: 40 }}>
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: `var(${meta.colorVar})` }}
-              />
-              {timeStr && (
-                <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
-                  {timeStr}
+              {isDaily ? (
+                <span
+                  className="rounded px-1 py-0.5 font-mono text-[8px] font-bold uppercase"
+                  style={{ background: 'color-mix(in srgb, #4caf50 15%, transparent)', color: '#4caf50' }}
+                >
+                  Daily
                 </span>
+              ) : (
+                <>
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: `var(${meta.colorVar})` }}
+                  />
+                  {timeStr && (
+                    <span className="font-mono text-[10px] tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
+                      {timeStr}
+                    </span>
+                  )}
+                </>
               )}
             </div>
 
-            {/* Title (tappable to open slate) */}
+            {/* Title — daily taps go to MD view, regular slates go to slate view */}
             <button
-              onClick={() => onSlateTap(slate)}
+              onClick={() => isDaily && onMdTap ? onMdTap(slate) : onSlateTap(slate)}
               className="min-w-0 flex-1 border-none bg-transparent p-0 text-left"
               style={{ cursor: 'pointer' }}
             >
@@ -435,7 +451,7 @@ function TodayCard({
               </div>
             </button>
 
-            {/* MD badge */}
+            {/* MD badge — green for daily, accent for others */}
             {hasMd && onMdTap && (
               <button
                 onClick={(e) => {
@@ -444,8 +460,10 @@ function TodayCard({
                 }}
                 className="flex-shrink-0 rounded-md border-none px-2 py-1 font-mono text-[11px] font-bold"
                 style={{
-                  background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
-                  color: 'var(--color-accent)',
+                  background: isDaily
+                    ? 'color-mix(in srgb, #4caf50 15%, transparent)'
+                    : 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+                  color: isDaily ? '#4caf50' : 'var(--color-accent)',
                   cursor: 'pointer',
                 }}
               >

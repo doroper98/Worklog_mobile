@@ -7,9 +7,21 @@ function decodeBase64Utf8(base64: string): string {
   return new TextDecoder('utf-8').decode(bytes)
 }
 
-/** Parse slates from decoded JSON string */
-function parseSlatesFromJson(jsonStr: string): SlateEntry[] {
+/** Result of parsing a journal JSON file */
+interface ParsedJournal {
+  slates: SlateEntry[]
+  /** Top-level daily markdown (from CLI ingest) */
+  dailyMarkdown: string
+  dailyMarkdownGeneratedAt: string
+}
+
+/** Parse slates + daily markdown from decoded JSON string */
+function parseJournalJson(jsonStr: string): ParsedJournal {
   const json = JSON.parse(jsonStr) as Record<string, unknown>
+
+  // Extract top-level daily markdown
+  const dailyMarkdown = typeof json.markdown === 'string' ? json.markdown : ''
+  const dailyMarkdownGeneratedAt = typeof json.markdownGeneratedAt === 'string' ? json.markdownGeneratedAt : ''
 
   let rawSlates: Record<string, unknown>[]
 
@@ -20,10 +32,10 @@ function parseSlatesFromJson(jsonStr: string): SlateEntry[] {
   } else if (Array.isArray(json.entries)) {
     rawSlates = json.entries as Record<string, unknown>[]
   } else {
-    return []
+    return { slates: [], dailyMarkdown, dailyMarkdownGeneratedAt }
   }
 
-  return rawSlates.map((s) => ({
+  const slates = rawSlates.map((s) => ({
     id: String(s.id ?? ''),
     type: String(s.type ?? 'memo'),
     title: String(s.title ?? s.name ?? ''),
@@ -32,6 +44,8 @@ function parseSlatesFromJson(jsonStr: string): SlateEntry[] {
     createdAt: String(s.createdAt ?? s.created_at ?? s.date ?? ''),
     updatedAt: String(s.updatedAt ?? s.updated_at ?? s.date ?? ''),
   }))
+
+  return { slates, dailyMarkdown, dailyMarkdownGeneratedAt }
 }
 
 export interface DayFile {
@@ -169,9 +183,25 @@ export const CalendarService = {
       }
 
       if (decoded) {
-        const slates = parseSlatesFromJson(decoded)
-        slateCache.set(path, slates)
-        return slates
+        const { slates, dailyMarkdown, dailyMarkdownGeneratedAt } = parseJournalJson(decoded)
+
+        // Prepend Daily MD as a special slate entry if it exists
+        const result: SlateEntry[] = []
+        if (dailyMarkdown) {
+          result.push({
+            id: `daily-${year}-${mm}-${dd}`,
+            type: 'daily',
+            title: `${year}-${mm}-${dd} 일일 업무`,
+            content: '',
+            markdown: dailyMarkdown,
+            createdAt: dailyMarkdownGeneratedAt || `${year}-${mm}-${dd}T00:00:00`,
+            updatedAt: dailyMarkdownGeneratedAt || `${year}-${mm}-${dd}T00:00:00`,
+          })
+        }
+        result.push(...slates)
+
+        slateCache.set(path, result)
+        return result
       }
     } catch {
       // 404 or parse error — cache empty to prevent repeated calls
