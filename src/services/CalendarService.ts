@@ -22,10 +22,10 @@ const CACHE_TTL = 24 * 60 * 60 * 1000
 const cache = new Map<string, MonthData>()
 
 /**
- * CalendarService — fetches markdown/YYYY/MM/ tree to determine
- * which days have markdown files written.
+ * CalendarService — fetches journals/YYYY/MM/ tree to determine
+ * which days have journal files written.
  *
- * File naming convention: markdown/YYYY/MM/DD_{slateId}.md
+ * File naming convention: journals/YYYY/MM/DD.json
  */
 export const CalendarService = {
   /**
@@ -49,7 +49,7 @@ export const CalendarService = {
   /** Fetch from GitHub API */
   async fetchMonthData(year: number, month: number): Promise<MonthData> {
     const mm = String(month).padStart(2, '0')
-    const path = `markdown/${year}/${mm}`
+    const path = `journals/${year}/${mm}`
 
     const daysWithFiles = new Set<number>()
     const filesByDay = new Map<number, DayFile[]>()
@@ -59,10 +59,10 @@ export const CalendarService = {
 
       if (Array.isArray(entries)) {
         for (const entry of entries) {
-          if (entry.type !== 'file' || !entry.name.endsWith('.md')) continue
+          if (entry.type !== 'file') continue
 
-          // Extract day from filename: DD_something.md or DD.md
-          const dayMatch = entry.name.match(/^(\d{2})/)
+          // Extract day from filename: DD.json
+          const dayMatch = entry.name.match(/^(\d{2})\.json$/)
           if (!dayMatch) continue
 
           const day = parseInt(dayMatch[1], 10)
