@@ -171,9 +171,10 @@ export const CalendarService = {
         return slates
       }
     } catch {
-      // 404 or parse error
+      // 404 or parse error — cache empty to prevent repeated calls
     }
 
+    slateCache.set(path, [])
     return []
   },
 

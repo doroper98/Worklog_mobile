@@ -37,7 +37,21 @@ export function useTodayFiles(): UseTodayFilesResult {
       setDaysWithFiles(data.daysWithFiles)
       setFiles(data.filesByDay.get(day) ?? [])
       setSlates(daySlates)
-      setFollowups(dayFollowups)
+
+      // Merge followups from config/followups.json + followup-type slates
+      const slateFollowups: FollowupItem[] = daySlates
+        .filter((s) => s.type === 'followup')
+        .map((s) => ({
+          id: s.id,
+          description: s.title,
+          sourceDate: dateStr,
+          status: s.title.startsWith('[완료]') ? 'done' : 'pending',
+          completed: s.title.startsWith('[완료]'),
+          dueDate: null,
+        }))
+      // Config followups + slate followups (deduplicated by description is not needed, they're different sources)
+      const pendingSlateFollowups = slateFollowups.filter((f) => !f.completed)
+      setFollowups([...dayFollowups, ...pendingSlateFollowups])
     } catch {
       setFiles([])
       setSlates([])
