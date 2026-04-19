@@ -658,22 +658,26 @@ export function HomeView({
         }}
       />
 
-      {/* Scrollable content */}
+      {/* Fixed top area: AppBar + Search + WeekStrip */}
       <div
-        className="relative z-[1] flex-1 overflow-auto"
-        style={{ paddingTop: 'calc(16px + var(--sai-top, 0px))', paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
+        className="relative z-10 flex-shrink-0"
+        style={{ paddingTop: 'calc(16px + var(--sai-top, 0px))' }}
       >
         <AppBar />
         <SearchPill onTap={onSearchTap} count={totalDocs} />
         <OfflineBanner show={offline} />
-
-        {/* Week strip */}
         <WeekStrip
           selectedDate={selectedDate}
           daysWithFiles={daysWithFiles}
           onSelectDate={onSelectDate}
         />
+      </div>
 
+      {/* Scrollable content: slates, followups, wiki */}
+      <div
+        className="relative z-[1] flex-1 overflow-auto"
+        style={{ paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
+      >
         {/* Today / selected date section */}
         <div className="h-1.5" />
         <SectionHeader
