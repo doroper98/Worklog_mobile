@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
@@ -132,24 +132,30 @@ function SectionHeader({ title, detail }: { title: string; detail?: string }) {
 
 // ─── Week strip ────────────────────────────────────────────────────────
 
+/** Get the Sunday of the week containing the given date */
+function getWeekStart(dateStr: string): Date {
+  const d = new Date(dateStr.replace(/-/g, '/'))
+  d.setDate(d.getDate() - d.getDay())
+  return d
+}
+
 function WeekStrip({
   selectedDate,
   daysWithFiles,
   onSelectDate,
-  onMonthTap,
 }: {
   selectedDate: string
   daysWithFiles: Set<number>
   onSelectDate: (dateStr: string) => void
-  onMonthTap: () => void
 }) {
   const todayStr = getToday()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null)
+  const [animating, setAnimating] = useState(false)
 
   // Build week days (Sunday-based)
   const weekDays = useMemo(() => {
-    const sel = new Date(selectedDate.replace(/-/g, '/'))
-    const start = new Date(sel)
-    start.setDate(start.getDate() - start.getDay())
+    const start = getWeekStart(selectedDate)
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start)
       d.setDate(d.getDate() + i)
@@ -161,24 +167,43 @@ function WeekStrip({
   const selDate = new Date(selectedDate.replace(/-/g, '/'))
   const monthLabel = `${selDate.getFullYear()}년 ${selDate.getMonth() + 1}월`
 
+  const navigateWeek = useCallback((dir: 'left' | 'right') => {
+    if (animating) return
+    setSlideDir(dir)
+    setAnimating(true)
+
+    setTimeout(() => {
+      const offset = dir === 'left' ? -7 : 7
+      const current = new Date(selectedDate.replace(/-/g, '/'))
+      current.setDate(current.getDate() + offset)
+      onSelectDate(formatDate(current))
+
+      // Reset animation after state update
+      requestAnimationFrame(() => {
+        setSlideDir(null)
+        setAnimating(false)
+      })
+    }, 200)
+  }, [selectedDate, onSelectDate, animating])
+
+  // Slide transform
+  const slideTransform = slideDir === 'left'
+    ? 'translateX(-30px)'
+    : slideDir === 'right'
+      ? 'translateX(30px)'
+      : 'translateX(0)'
+
   return (
     <div className="px-4 pb-1.5 pt-3">
       <LiquidGlassSurface level={1} className="overflow-hidden rounded-[18px] px-2 py-2.5">
-        {/* Month header + Today button */}
+        {/* Month label + Today button */}
         <div className="flex items-center justify-between px-2.5 pb-2">
-          <button
-            onClick={onMonthTap}
-            className="inline-flex items-center gap-1 border-none bg-transparent p-0"
-            style={{ cursor: 'pointer' }}
+          <span
+            className="font-display text-sm font-bold tracking-tight"
+            style={{ color: 'var(--color-text)' }}
           >
-            <span
-              className="font-display text-sm font-bold tracking-tight"
-              style={{ color: 'var(--color-text)' }}
-            >
-              {monthLabel}
-            </span>
-            <Icon name="chev-right" size={13} color="var(--color-text-muted)" sw={2.2} />
-          </button>
+            {monthLabel}
+          </span>
           <button
             onClick={() => onSelectDate(todayStr)}
             disabled={selectedDate === todayStr}
@@ -194,75 +219,106 @@ function WeekStrip({
           </button>
         </div>
 
-        {/* 7 day cells */}
-        <div className="grid grid-cols-7 gap-0.5">
-          {weekDays.map((dateStr, i) => {
-            const isToday = dateStr === todayStr
-            const isSelected = dateStr === selectedDate
-            const dayNum = parseInt(dateStr.split('-')[2], 10)
-            const isSun = i === 0
-            const hasFile = daysWithFiles.has(dayNum)
+        {/* Week navigation row */}
+        <div className="flex items-center">
+          {/* Prev week arrow */}
+          <button
+            onClick={() => navigateWeek('left')}
+            className="flex h-10 w-7 flex-shrink-0 items-center justify-center border-none bg-transparent"
+            style={{ color: 'var(--color-text-muted)', cursor: 'pointer' }}
+          >
+            <Icon name="chev-left" size={14} sw={2.2} />
+          </button>
 
-            let bg = 'transparent'
-            let txt = 'var(--color-text)'
-            let labelColor = isSun ? 'var(--color-danger)' : 'var(--color-text-muted)'
-            let dotBg = 'var(--color-accent)'
+          {/* 7 day cells with slide animation */}
+          <div
+            ref={containerRef}
+            className="grid flex-1 grid-cols-7 gap-0.5"
+            style={{
+              transform: slideTransform,
+              opacity: slideDir ? 0.3 : 1,
+              transition: slideDir
+                ? 'transform 0.2s ease-out, opacity 0.15s ease-out'
+                : 'transform 0.15s ease-out, opacity 0.15s ease-in',
+            }}
+          >
+            {weekDays.map((dateStr, i) => {
+              const isToday = dateStr === todayStr
+              const isSelected = dateStr === selectedDate
+              const dayNum = parseInt(dateStr.split('-')[2], 10)
+              const isSun = i === 0
+              const hasFile = daysWithFiles.has(dayNum)
 
-            if (isToday && !isSelected) {
-              bg = 'var(--color-accent)'
-              txt = 'var(--color-accent-text-on)'
-              labelColor = 'rgba(255,255,255,0.8)'
-              dotBg = 'rgba(255,255,255,0.85)'
-            } else if (isSelected) {
-              bg = 'var(--color-accent-soft)'
-              txt = 'var(--color-accent)'
-              labelColor = 'var(--color-accent)'
-            } else if (isSun) {
-              txt = 'var(--color-danger)'
-            }
+              let bg = 'transparent'
+              let txt = 'var(--color-text)'
+              let labelColor = isSun ? 'var(--color-danger)' : 'var(--color-text-muted)'
+              let dotBg = 'var(--color-accent)'
 
-            return (
-              <button
-                key={dateStr}
-                onClick={() => onSelectDate(dateStr)}
-                className="flex flex-col items-center border-none bg-transparent py-1"
-                style={{ cursor: 'pointer', borderRadius: 10 }}
-              >
-                <div
-                  className="font-mono text-[9px] font-bold uppercase tracking-wider"
-                  style={{
-                    color: labelColor,
-                    marginBottom: 4,
-                    opacity: isSelected || isToday ? 1 : 0.85,
-                  }}
+              if (isToday && !isSelected) {
+                bg = 'var(--color-accent)'
+                txt = 'var(--color-accent-text-on)'
+                labelColor = 'rgba(255,255,255,0.8)'
+                dotBg = 'rgba(255,255,255,0.85)'
+              } else if (isSelected) {
+                bg = 'var(--color-accent-soft)'
+                txt = 'var(--color-accent)'
+                labelColor = 'var(--color-accent)'
+              } else if (isSun) {
+                txt = 'var(--color-danger)'
+              }
+
+              return (
+                <button
+                  key={dateStr}
+                  onClick={() => onSelectDate(dateStr)}
+                  className="flex flex-col items-center border-none bg-transparent py-1"
+                  style={{ cursor: 'pointer', borderRadius: 10 }}
                 >
-                  {DOW_LABELS[i]}
-                </div>
-                <div
-                  className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full"
-                  style={{
-                    background: bg,
-                    fontSize: 15,
-                    fontWeight: isToday || isSelected ? 700 : 500,
-                    color: txt,
-                    fontVariantNumeric: 'tabular-nums',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  {dayNum}
-                </div>
-                <span
-                  className="mt-0.5"
-                  style={{
-                    width: 4,
-                    height: 4,
-                    borderRadius: 2,
-                    background: hasFile ? dotBg : 'transparent',
-                  }}
-                />
-              </button>
-            )
-          })}
+                  <div
+                    className="font-mono text-[9px] font-bold uppercase tracking-wider"
+                    style={{
+                      color: labelColor,
+                      marginBottom: 4,
+                      opacity: isSelected || isToday ? 1 : 0.85,
+                    }}
+                  >
+                    {DOW_LABELS[i]}
+                  </div>
+                  <div
+                    className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full"
+                    style={{
+                      background: bg,
+                      fontSize: 15,
+                      fontWeight: isToday || isSelected ? 700 : 500,
+                      color: txt,
+                      fontVariantNumeric: 'tabular-nums',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    {dayNum}
+                  </div>
+                  <span
+                    className="mt-0.5"
+                    style={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: 2,
+                      background: hasFile ? dotBg : 'transparent',
+                    }}
+                  />
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Next week arrow */}
+          <button
+            onClick={() => navigateWeek('right')}
+            className="flex h-10 w-7 flex-shrink-0 items-center justify-center border-none bg-transparent"
+            style={{ color: 'var(--color-text-muted)', cursor: 'pointer' }}
+          >
+            <Icon name="chev-right" size={14} sw={2.2} />
+          </button>
         </div>
       </LiquidGlassSurface>
     </div>
@@ -571,7 +627,6 @@ export function HomeView({
           selectedDate={selectedDate}
           daysWithFiles={daysWithFiles}
           onSelectDate={onSelectDate}
-          onMonthTap={() => onTabSelect('calendar')}
         />
 
         {/* Today / selected date section */}
