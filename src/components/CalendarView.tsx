@@ -11,6 +11,7 @@ import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/u
 interface CalendarViewProps {
   onTabSelect: (tab: string) => void
   onFileTap: (path: string) => void
+  onFabTap?: () => void
 }
 
 // ─── Tab bar (shared pattern with HomeView) ─────────────────────────────
@@ -350,7 +351,7 @@ function DayList({
 
 // ─── CalendarView ───────────────────────────────────────────────────────
 
-export function CalendarView({ onTabSelect, onFileTap }: CalendarViewProps) {
+export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewProps) {
   const {
     year, month,
     daysWithFiles, getFilesForDay,
@@ -436,7 +437,7 @@ export function CalendarView({ onTabSelect, onFileTap }: CalendarViewProps) {
         />
       </div>
 
-      <FAB />
+      <FAB onTap={onFabTap} />
       <TabBar active="calendar" onSelect={onTabSelect} />
     </div>
   )

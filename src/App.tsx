@@ -7,6 +7,7 @@ import { WikiCategory } from '@/components/WikiCategory'
 import { CalendarView } from '@/components/CalendarView'
 import { MarkdownView } from '@/components/MarkdownView'
 import { SearchView } from '@/components/SearchView'
+import { QuickMemoSheet } from '@/components/QuickMemoSheet'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import { useWikiTree } from '@/hooks/useWikiTree'
@@ -27,6 +28,7 @@ type ViewState =
 
 function AuthenticatedShell() {
   const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
+  const [memoOpen, setMemoOpen] = useState(false)
   const { categories, loading: treeLoading } = useWikiTree()
   const { document, loading: docLoading, loadDocument, clearDocument } = useDocument()
   const { files: todayFiles, daysWithFiles, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
@@ -76,6 +78,14 @@ function AuthenticatedShell() {
     setViewState({ view: 'search' })
   }, [])
 
+  const handleFabTap = useCallback(() => {
+    setMemoOpen(true)
+  }, [])
+
+  const handleMemoClose = useCallback(() => {
+    setMemoOpen(false)
+  }, [])
+
   // Render current view
   if (viewState.view === 'document' && viewState.path) {
     return (
@@ -105,10 +115,14 @@ function AuthenticatedShell() {
 
   if (viewState.view === 'calendar') {
     return (
-      <CalendarView
-        onTabSelect={handleTabSelect}
-        onFileTap={handleFileTap}
-      />
+      <>
+        <CalendarView
+          onTabSelect={handleTabSelect}
+          onFileTap={handleFileTap}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
     )
   }
 
@@ -122,20 +136,24 @@ function AuthenticatedShell() {
   }
 
   return (
-    <HomeView
-      categories={categories}
-      loading={treeLoading}
-      selectedDate={selectedDate}
-      todayFiles={todayFiles}
-      todayLoading={todayLoading}
-      daysWithFiles={daysWithFiles}
-      onSelectDate={selectDate}
-      recentDocs={recentDocs}
-      onCategoryTap={handleCategoryTap}
-      onFileTap={handleFileTap}
-      onSearchTap={handleSearchTap}
-      onTabSelect={handleTabSelect}
-    />
+    <>
+      <HomeView
+        categories={categories}
+        loading={treeLoading}
+        selectedDate={selectedDate}
+        todayFiles={todayFiles}
+        todayLoading={todayLoading}
+        daysWithFiles={daysWithFiles}
+        onSelectDate={selectDate}
+        recentDocs={recentDocs}
+        onCategoryTap={handleCategoryTap}
+        onFileTap={handleFileTap}
+        onSearchTap={handleSearchTap}
+        onTabSelect={handleTabSelect}
+        onFabTap={handleFabTap}
+      />
+      <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+    </>
   )
 }
 

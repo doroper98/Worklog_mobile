@@ -27,6 +27,7 @@ interface HomeViewProps {
   onFileTap: (path: string) => void
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
+  onFabTap?: () => void
 }
 
 const CATEGORY_META: Record<string, { icon: 'users' | 'folder' | 'alert' | 'file'; colorVar: string }> = {
@@ -560,6 +561,7 @@ export function HomeView({
   onFileTap,
   onSearchTap,
   onTabSelect,
+  onFabTap,
 }: HomeViewProps) {
   const totalDocs = categories.reduce((sum, c) => sum + c.count, 0)
   const todayStr = getToday()
@@ -619,7 +621,7 @@ export function HomeView({
         <div className="h-8" />
       </div>
 
-      <FAB />
+      <FAB onTap={onFabTap} />
       <TabBar active="home" onSelect={onTabSelect} />
     </div>
   )
