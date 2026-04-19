@@ -6,11 +6,13 @@ import { HomeView } from '@/components/HomeView'
 import { WikiCategory } from '@/components/WikiCategory'
 import { CalendarView } from '@/components/CalendarView'
 import { MarkdownView } from '@/components/MarkdownView'
+import { SlateView } from '@/components/SlateView'
 import { SearchView } from '@/components/SearchView'
 import { QuickMemoSheet } from '@/components/QuickMemoSheet'
 import { SettingsView } from '@/components/SettingsView'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
+import type { SlateEntry } from '@/services/CalendarService'
 import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
@@ -26,6 +28,7 @@ type ViewState =
   | { view: 'settings' }
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
+  | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
@@ -52,6 +55,11 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     recordAccess(path)
   }, [loadDocument, recordAccess, viewState.view])
 
+  const handleSlateTap = useCallback((slate: SlateEntry) => {
+    const from = viewState.view === 'calendar' ? 'calendar' as const : 'home' as const
+    setViewState({ view: 'slate', slate, from })
+  }, [viewState.view])
+
   const handleBack = useCallback(() => {
     clearDocument()
     if (viewState.view === 'document') {
@@ -59,6 +67,12 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         setViewState({ view: 'calendar' })
       } else if (viewState.from === 'search') {
         setViewState({ view: 'search' })
+      } else {
+        setViewState({ view: 'home' })
+      }
+    } else if (viewState.view === 'slate') {
+      if (viewState.from === 'calendar') {
+        setViewState({ view: 'calendar' })
       } else {
         setViewState({ view: 'home' })
       }
@@ -91,6 +105,15 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   }, [])
 
   // Render current view
+  if (viewState.view === 'slate') {
+    return (
+      <SlateView
+        slate={viewState.slate}
+        onBack={handleBack}
+      />
+    )
+  }
+
   if (viewState.view === 'document' && viewState.path) {
     return (
       <MarkdownView
@@ -122,7 +145,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       <>
         <CalendarView
           onTabSelect={handleTabSelect}
-          onFileTap={handleFileTap}
+          onSlateTap={handleSlateTap}
           onFabTap={handleFabTap}
         />
         <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
@@ -162,6 +185,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         offline={!online}
         onCategoryTap={handleCategoryTap}
         onFileTap={handleFileTap}
+        onSlateTap={handleSlateTap}
         onSearchTap={handleSearchTap}
         onTabSelect={handleTabSelect}
         onFabTap={handleFabTap}

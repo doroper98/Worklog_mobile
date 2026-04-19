@@ -18,6 +18,7 @@ export interface SlateEntry {
   id: string
   type: string
   title: string
+  content: string
   createdAt: string
   updatedAt: string
 }
@@ -141,10 +142,11 @@ export const CalendarService = {
           slates: { id: string; type: string; title: string; createdAt: string; updatedAt: string }[]
         }
 
-        const slates: SlateEntry[] = (json.slates ?? []).map((s) => ({
+        const slates: SlateEntry[] = (json.slates ?? []).map((s: Record<string, string>) => ({
           id: s.id,
           type: s.type,
           title: s.title,
+          content: s.content ?? '',
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
         }))

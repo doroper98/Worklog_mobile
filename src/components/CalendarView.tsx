@@ -10,7 +10,7 @@ import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/u
 
 interface CalendarViewProps {
   onTabSelect: (tab: string) => void
-  onFileTap: (path: string) => void
+  onSlateTap: (slate: SlateEntry) => void
   onFabTap?: () => void
 }
 
@@ -392,7 +392,7 @@ function SlateList({
 
 // ─── CalendarView ───────────────────────────────────────────────────────
 
-export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewProps) {
+export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarViewProps) {
   const {
     year, month,
     daysWithFiles, followupDates,
@@ -410,14 +410,12 @@ export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewP
   const now = new Date()
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
 
-  // Fetch slates when selected date changes and it has files
+  // Fetch slates when selected date changes
   const selectedDay = parseInt(selectedDate.split('-')[2], 10)
   const selectedMonth = parseInt(selectedDate.split('-')[1], 10)
-  const dayHasFiles = selectedMonth === month && daysWithFiles.has(selectedDay)
 
   useEffect(() => {
-    if (!dayHasFiles || loading) {
-      setSlates([])
+    if (loading || selectedMonth !== month) {
       return
     }
 
@@ -436,7 +434,7 @@ export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewP
       })
 
     return () => { cancelled = true }
-  }, [selectedDay, dayHasFiles, loading, getSlatesForDay])
+  }, [selectedDay, selectedMonth, month, loading, getSlatesForDay])
 
   const handleSelectDate = useCallback((dateStr: string, isCurrent: boolean) => {
     if (!isCurrent) {
@@ -456,13 +454,9 @@ export function CalendarView({ onTabSelect, onFileTap, onFabTap }: CalendarViewP
     setSelectedDate(formatDate(new Date()))
   }, [goToday])
 
-  // Tapping a slate navigates to its journal file
-  const handleSlateTap = useCallback((_slate: SlateEntry) => {
-    const mm = String(selectedMonth).padStart(2, '0')
-    const dd = String(selectedDay).padStart(2, '0')
-    const path = `journals/${year}/${mm}/${dd}.json`
-    onFileTap(path)
-  }, [year, selectedMonth, selectedDay, onFileTap])
+  const handleSlateTap = useCallback((slate: SlateEntry) => {
+    onSlateTap(slate)
+  }, [onSlateTap])
 
   return (
     <div

@@ -28,6 +28,7 @@ interface HomeViewProps {
   /** Actions */
   onCategoryTap: (key: string) => void
   onFileTap: (path: string) => void
+  onSlateTap: (slate: SlateEntry) => void
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
   onFabTap?: () => void
@@ -285,13 +286,11 @@ function WeekStrip({
 function TodayCard({
   slates,
   loading,
-  onFileTap,
-  selectedDate,
+  onSlateTap,
 }: {
   slates: SlateEntry[]
   loading: boolean
-  onFileTap: (path: string) => void
-  selectedDate: string
+  onSlateTap: (slate: SlateEntry) => void
 }) {
   if (loading) {
     return (
@@ -329,10 +328,6 @@ function TodayCard({
     )
   }
 
-  // Build journal path from selected date
-  const [y, m, d] = selectedDate.split('-')
-  const journalPath = `journals/${y}/${m}/${d}.json`
-
   return (
     <div
       className="mx-4 overflow-hidden rounded-[18px] border"
@@ -343,7 +338,7 @@ function TodayCard({
         return (
           <button
             key={slate.id}
-            onClick={() => onFileTap(journalPath)}
+            onClick={() => onSlateTap(slate)}
             className="flex w-full items-center gap-2.5 border-none bg-transparent px-3.5 py-2.5 text-left"
             style={{
               borderBottom: i < slates.length - 1 ? '1px solid var(--color-hairline)' : 'none',
@@ -583,6 +578,7 @@ export function HomeView({
   offline = false,
   onCategoryTap,
   onFileTap,
+  onSlateTap,
   onSearchTap,
   onTabSelect,
   onFabTap,
@@ -634,7 +630,7 @@ export function HomeView({
           title={sectionTitle}
           detail={todayLoading ? '' : `${todaySlates.length} slates`}
         />
-        <TodayCard slates={todaySlates} loading={todayLoading} onFileTap={onFileTap} selectedDate={selectedDate} />
+        <TodayCard slates={todaySlates} loading={todayLoading} onSlateTap={onSlateTap} />
 
         {/* Recent */}
         <div className="h-[22px]" />
