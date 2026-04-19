@@ -30,7 +30,7 @@ type ViewState =
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
   | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' }
-  | { view: 'slateMeta'; slateId: string; slateTitle: string; from: 'home' | 'calendar' }
+  | { view: 'slateMeta'; slate: SlateEntry; from: 'home' | 'calendar' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
 
   const handleMdTap = useCallback((slate: SlateEntry) => {
     const from = viewState.view === 'calendar' ? 'calendar' as const : 'home' as const
-    setViewState({ view: 'slateMeta', slateId: slate.id, slateTitle: slate.title, from })
+    setViewState({ view: 'slateMeta', slate, from })
   }, [viewState.view])
 
   const handleBack = useCallback(() => {
@@ -133,8 +133,9 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     return (
       <>
         <SlateMetaView
-          slateId={viewState.slateId}
-          slateTitle={viewState.slateTitle}
+          slateId={viewState.slate.id}
+          slateTitle={viewState.slate.title}
+          slateContent={viewState.slate.content}
           onBack={handleBack}
           onWikiTap={handleWikiTap}
           onTabSelect={handleTabSelect}

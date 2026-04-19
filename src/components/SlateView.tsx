@@ -4,6 +4,7 @@ import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
 import type { SlateEntry } from '@/services/CalendarService'
 
 interface SlateViewProps {
@@ -38,44 +39,6 @@ function formatDateTime(iso: string): string {
   } catch {
     return iso
   }
-}
-
-/** Convert HTML content to plain text / pseudo-markdown for ReactMarkdown */
-function htmlToMarkdown(html: string): string {
-  if (!html) return ''
-  let md = html
-    // Block elements to newlines
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/li>/gi, '\n')
-    .replace(/<li>/gi, '- ')
-    .replace(/<\/h([1-6])>/gi, '\n\n')
-    .replace(/<h([1-6])[^>]*>/gi, (_, level) => '#'.repeat(Number(level)) + ' ')
-    // Bold / italic
-    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
-    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
-    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*')
-    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*')
-    // Links
-    .replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)')
-    // Mentions (preserve as bold)
-    .replace(/<span[^>]*class="tcc-mention"[^>]*>([\s\S]*?)<\/span>/gi, '**$1**')
-    // Code
-    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
-    .replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, '```\n$1\n```')
-    // Strip remaining HTML tags
-    .replace(/<[^>]+>/g, '')
-    // Decode HTML entities
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    // Clean up excessive newlines
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  return md
 }
 
 export function SlateView({ slate, onBack, onTabSelect, onFabTap }: SlateViewProps) {
