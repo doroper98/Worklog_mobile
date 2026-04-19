@@ -89,7 +89,7 @@ function AppBar() {
           </div>
           <div className="mt-0.5 font-mono text-[9.5px] uppercase tracking-widest"
             style={{ color: 'var(--color-text-muted)' }}>
-            mobile · v26.0
+            mobile · v{__APP_VERSION__}
           </div>
         </div>
       </div>
@@ -378,28 +378,38 @@ function TodayCard({
 function FollowupList({ items }: { items: FollowupItem[] }) {
   if (items.length === 0) return null
 
+  // Pending first, then completed
+  const sorted = [...items].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1
+    return 0
+  })
+
   return (
     <div
       className="mx-4 overflow-hidden rounded-[18px] border"
       style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', boxShadow: 'var(--glass-shadow)' }}
     >
-      {items.map((item, i) => (
+      {sorted.map((item, i) => (
         <div
           key={item.id}
           className="flex items-start gap-2.5 px-3.5 py-2.5"
           style={{
-            borderBottom: i < items.length - 1 ? '1px solid var(--color-hairline)' : 'none',
+            borderBottom: i < sorted.length - 1 ? '1px solid var(--color-hairline)' : 'none',
             minHeight: 40,
+            opacity: item.completed ? 0.5 : 1,
           }}
         >
           <span
             className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
-            style={{ background: 'var(--color-danger)' }}
+            style={{ background: item.completed ? 'var(--color-text-muted)' : 'var(--color-danger)' }}
           />
           <div className="min-w-0 flex-1">
             <div
               className="text-[13px] font-medium leading-snug"
-              style={{ color: 'var(--color-text)' }}
+              style={{
+                color: 'var(--color-text)',
+                textDecoration: item.completed ? 'line-through' : 'none',
+              }}
             >
               {item.description}
             </div>
@@ -408,8 +418,13 @@ function FollowupList({ items }: { items: FollowupItem[] }) {
                 {item.sourceDate}
               </span>
               {item.dueDate && (
-                <span className="font-mono text-[10px]" style={{ color: 'var(--color-danger)' }}>
+                <span className="font-mono text-[10px]" style={{ color: item.completed ? 'var(--color-text-muted)' : 'var(--color-danger)' }}>
                   ~{item.dueDate}
+                </span>
+              )}
+              {item.completed && (
+                <span className="font-mono text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                  ✓ 완료
                 </span>
               )}
             </div>

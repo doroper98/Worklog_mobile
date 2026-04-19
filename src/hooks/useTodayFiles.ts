@@ -31,7 +31,7 @@ export function useTodayFiles(): UseTodayFilesResult {
       const [data, daySlates, dayFollowups] = await Promise.all([
         CalendarService.getMonthData(y, m),
         CalendarService.getSlatesForDay(y, m, day),
-        CalendarService.getAllPendingFollowups(),
+        CalendarService.getAllFollowups(),
       ])
 
       setDaysWithFiles(data.daysWithFiles)

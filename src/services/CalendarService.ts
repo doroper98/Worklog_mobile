@@ -218,10 +218,10 @@ export const CalendarService = {
     )
   },
 
-  /** Get all pending (uncompleted) followup items regardless of date */
-  async getAllPendingFollowups(): Promise<FollowupItem[]> {
+  /** Get all followup items regardless of date or status */
+  async getAllFollowups(): Promise<FollowupItem[]> {
     const { items } = await this.fetchFollowups()
-    return items.filter((it) => !it.completed && it.status !== 'done')
+    return items
   },
 
   /** Invalidate cache for a specific month */
