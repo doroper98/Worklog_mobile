@@ -106,23 +106,33 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   // Render current view
   if (viewState.view === 'slate') {
     return (
-      <SlateView
-        slate={viewState.slate}
-        onBack={handleBack}
-      />
+      <>
+        <SlateView
+          slate={viewState.slate}
+          onBack={handleBack}
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
     )
   }
 
   if (viewState.view === 'document' && viewState.path) {
     return (
-      <MarkdownView
-        title={document?.name ?? viewState.path.split('/').pop()?.replace(/\.md$/, '') ?? ''}
-        path={viewState.path}
-        content={document?.content ?? ''}
-        loading={docLoading}
-        error={docError}
-        onBack={handleBack}
-      />
+      <>
+        <MarkdownView
+          title={document?.name ?? viewState.path.split('/').pop()?.replace(/\.md$/, '') ?? ''}
+          path={viewState.path}
+          content={document?.content ?? ''}
+          loading={docLoading}
+          error={docError}
+          onBack={handleBack}
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
     )
   }
 
@@ -130,12 +140,17 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     const cat = categories.find((c) => c.key === viewState.key)
     if (cat) {
       return (
-        <WikiCategory
-          title={cat.title}
-          files={cat.files}
-          onFileTap={handleFileTap}
-          onBack={handleBack}
-        />
+        <>
+          <WikiCategory
+            title={cat.title}
+            files={cat.files}
+            onFileTap={handleFileTap}
+            onBack={handleBack}
+            onTabSelect={handleTabSelect}
+            onFabTap={handleFabTap}
+          />
+          <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+        </>
       )
     }
   }

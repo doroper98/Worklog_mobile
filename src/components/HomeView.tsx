@@ -616,7 +616,7 @@ export function HomeView({
       {/* Scrollable content */}
       <div
         className="relative z-[1] flex-1 overflow-auto"
-        style={{ paddingTop: 'calc(56px + var(--sai-top, 0px))', paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
+        style={{ paddingTop: 'calc(16px + var(--sai-top, 0px))', paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
       >
         <AppBar />
         <SearchPill onTap={onSearchTap} count={totalDocs} />
