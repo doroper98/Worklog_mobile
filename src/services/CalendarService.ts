@@ -218,6 +218,12 @@ export const CalendarService = {
     )
   },
 
+  /** Get all pending (uncompleted) followup items regardless of date */
+  async getAllPendingFollowups(): Promise<FollowupItem[]> {
+    const { items } = await this.fetchFollowups()
+    return items.filter((it) => !it.completed && it.status !== 'done')
+  },
+
   /** Invalidate cache for a specific month */
   invalidate(year: number, month: number): void {
     const mm = String(month).padStart(2, '0')
