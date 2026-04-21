@@ -25,6 +25,7 @@ export interface DirEntry {
   path: string
   sha: string
   type: 'file' | 'dir' | 'symlink'
+  size?: number
 }
 
 /** GitHub tree node */

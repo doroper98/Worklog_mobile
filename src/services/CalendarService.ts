@@ -90,6 +90,9 @@ export interface MonthData {
 /** TTL for caches that change frequently (slates, followups, month listings) */
 const CACHE_TTL = 5 * 60 * 1000
 
+/** Byte size below which a journal JSON is treated as an empty shell */
+const EMPTY_JOURNAL_BYTES = 100
+
 /** In-memory cache keyed by "YYYY/MM" */
 const cache = new Map<string, MonthData>()
 
@@ -146,6 +149,11 @@ export const CalendarService = {
           if (!dayMatch) continue
           const day = parseInt(dayMatch[1], 10)
           if (day < 1 || day > 31) continue
+
+          // Desktop leaves an empty shell JSON (e.g. {"slates":[]}) when every
+          // slate is deleted, so filter by byte size to avoid showing a dot
+          // for a day that has no real content. Real journals start at ~200 B.
+          if (typeof entry.size === 'number' && entry.size < EMPTY_JOURNAL_BYTES) continue
 
           daysWithFiles.add(day)
           const existing = filesByDay.get(day) ?? []
