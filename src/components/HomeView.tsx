@@ -814,14 +814,6 @@ export function HomeView({
       className="relative flex h-full flex-col overflow-hidden font-sans"
       style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
     >
-      {/* Radial wash */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: 'radial-gradient(120% 60% at 50% 0%, var(--color-accent-soft), transparent 60%)',
-        }}
-      />
-
       {/* Fixed top area: AppBar + Search + WeekStrip */}
       <div
         className="relative z-10 flex-shrink-0"

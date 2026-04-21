@@ -24,14 +24,6 @@ export function WikiCategory({ title, files, onFileTap, onBack, onTabSelect, onF
       className="relative flex h-full flex-col overflow-hidden font-sans"
       style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
     >
-      {/* Radial wash */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: 'radial-gradient(120% 60% at 50% 0%, var(--color-accent-soft), transparent 60%)',
-        }}
-      />
-
       {/* Header */}
       <LiquidGlassSurface
         level={1}

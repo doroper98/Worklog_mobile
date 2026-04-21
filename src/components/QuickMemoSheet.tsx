@@ -202,14 +202,6 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
       className="fixed inset-0 z-50 flex flex-col"
       style={{ background: 'var(--color-bg)' }}
     >
-      {/* Background wash */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: 'radial-gradient(120% 50% at 50% 0%, var(--color-accent-soft), transparent 60%)',
-        }}
-      />
-
       {/* Header */}
       <LiquidGlassSurface level={1} className="relative z-10 px-4 pb-3 pt-16">
         <div className="flex items-center justify-between">

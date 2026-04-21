@@ -481,14 +481,6 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap, onRefresh }: C
       className="relative flex h-full flex-col overflow-hidden font-sans"
       style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}
     >
-      {/* Radial wash */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: 'radial-gradient(120% 50% at 50% 0%, var(--color-accent-soft), transparent 60%)',
-        }}
-      />
-
       {/* Content */}
       <div
         className="relative z-[1] flex min-h-0 flex-1 flex-col"
