@@ -147,4 +147,9 @@ export const SearchIndex = {
   get documentCount(): number {
     return index?.documentCount ?? 0
   },
+
+  /** Drop the built index so the next build() starts fresh */
+  clearIndex(): void {
+    index = null
+  },
 } as const

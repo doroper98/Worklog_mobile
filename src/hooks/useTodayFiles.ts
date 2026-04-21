@@ -14,6 +14,8 @@ interface UseTodayFilesResult {
   selectedDate: string
   selectDate: (dateStr: string) => void
   loading: boolean
+  /** Re-fetch current date */
+  refresh: () => Promise<void>
 }
 
 export function useTodayFiles(): UseTodayFilesResult {
@@ -76,5 +78,7 @@ export function useTodayFiles(): UseTodayFilesResult {
     setSelectedDate(dateStr)
   }, [])
 
-  return { files, slates, followups, daysWithFiles, followupDates, selectedDate, selectDate, loading }
+  const refresh = useCallback(() => loadDate(selectedDate), [loadDate, selectedDate])
+
+  return { files, slates, followups, daysWithFiles, followupDates, selectedDate, selectDate, loading, refresh }
 }

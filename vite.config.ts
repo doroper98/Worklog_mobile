@@ -20,7 +20,7 @@ export default defineConfig({
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'github-api',
-              expiration: { maxAgeSeconds: 3600 },
+              expiration: { maxAgeSeconds: 300 },
             },
           },
           {

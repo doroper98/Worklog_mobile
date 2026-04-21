@@ -92,4 +92,10 @@ export const MetaIndexService = {
     const entries = await this.getEntries()
     return entries.find((e) => e.date === date && e.type === 'daily') ?? null
   },
+
+  /** Drop cached entries so the next call fetches fresh */
+  clearCache(): void {
+    cachedEntries = null
+    cacheTimestamp = 0
+  },
 } as const

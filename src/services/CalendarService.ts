@@ -87,14 +87,18 @@ export interface MonthData {
   fetchedAt: number
 }
 
-/** Cache TTL: 1 day */
-const CACHE_TTL = 24 * 60 * 60 * 1000
+/** TTL for caches that change frequently (slates, followups, month listings) */
+const CACHE_TTL = 5 * 60 * 1000
 
 /** In-memory cache keyed by "YYYY/MM" */
 const cache = new Map<string, MonthData>()
 
 /** Cache for parsed slates keyed by file path */
-const slateCache = new Map<string, SlateEntry[]>()
+interface SlateCacheEntry {
+  slates: SlateEntry[]
+  fetchedAt: number
+}
+const slateCache = new Map<string, SlateCacheEntry>()
 
 /** Cache for followup data */
 let followupCache: { items: FollowupItem[]; dates: Set<string>; fetchedAt: number } | null = null
@@ -167,7 +171,7 @@ export const CalendarService = {
     const path = `journals/${year}/${mm}/${dd}.json`
 
     const cached = slateCache.get(path)
-    if (cached) return cached
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.slates
 
     try {
       const file = await GitHubClient.getContents(path)
@@ -202,14 +206,14 @@ export const CalendarService = {
         }
         result.push(...slates)
 
-        slateCache.set(path, result)
+        slateCache.set(path, { slates: result, fetchedAt: Date.now() })
         return result
       }
     } catch {
       // 404 or parse error — cache empty to prevent repeated calls
     }
 
-    slateCache.set(path, [])
+    slateCache.set(path, { slates: [], fetchedAt: Date.now() })
     return []
   },
 

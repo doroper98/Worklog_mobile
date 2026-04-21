@@ -2,8 +2,10 @@ import { useState, useMemo, useCallback, useRef } from 'react'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import type { WikiCategory } from '@/hooks/useWikiTree'
 import type { SlateEntry, FollowupItem } from '@/services/CalendarService'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import {
   formatDate, getToday, DOW_LABELS,
@@ -34,6 +36,8 @@ interface HomeViewProps {
   onSearchTap: () => void
   onTabSelect: (tab: string) => void
   onFabTap?: () => void
+  /** Pull-to-refresh handler */
+  onRefresh?: () => Promise<void>
 }
 
 const SLATE_TYPE_META: Record<string, { icon: 'users' | 'folder' | 'file' | 'alert' | 'calendar'; colorVar: string; label: string }> = {
@@ -671,10 +675,18 @@ export function HomeView({
   onSearchTap,
   onTabSelect,
   onFabTap,
+  onRefresh,
 }: HomeViewProps) {
   const totalDocs = categories.reduce((sum, c) => sum + c.count, 0)
   const todayStr = getToday()
   const isToday = selectedDate === todayStr
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const { distance, refreshing, threshold } = usePullToRefresh({
+    scrollRef,
+    onRefresh: onRefresh ?? (() => Promise.resolve()),
+    enabled: Boolean(onRefresh),
+  })
 
   // Section title for selected date
   const selDate = new Date(selectedDate.replace(/-/g, '/'))
@@ -714,9 +726,11 @@ export function HomeView({
 
       {/* Scrollable content: slates, followups, wiki */}
       <div
+        ref={scrollRef}
         className="relative z-[1] flex-1 overflow-auto"
         style={{ paddingBottom: 'calc(96px + var(--sai-bottom, 0px))' }}
       >
+        <PullToRefreshIndicator distance={distance} refreshing={refreshing} threshold={threshold} />
         {/* Today / selected date section */}
         <div className="h-1.5" />
         <SectionHeader

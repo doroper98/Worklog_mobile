@@ -1,8 +1,10 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import { useCalendarMonth } from '@/hooks/useCalendarMonth'
+import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { CalendarService } from '@/services/CalendarService'
 import type { SlateEntry } from '@/services/CalendarService'
 import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/utils/calendarUtils'
@@ -13,6 +15,8 @@ interface CalendarViewProps {
   onTabSelect: (tab: string) => void
   onSlateTap: (slate: SlateEntry) => void
   onFabTap?: () => void
+  /** Pull-to-refresh handler */
+  onRefresh?: () => Promise<void>
 }
 
 // Slate type → icon/color mapping
@@ -272,11 +276,15 @@ function SlateList({
   slates,
   loading,
   onSlateTap,
+  scrollRef,
+  pullIndicator,
 }: {
   selectedDate: string
   slates: SlateEntry[]
   loading: boolean
   onSlateTap: (slate: SlateEntry) => void
+  scrollRef?: React.RefObject<HTMLDivElement | null>
+  pullIndicator?: React.ReactNode
 }) {
   const [y, m, d] = selectedDate.split('-').map(Number)
   const date = new Date(y, m - 1, d)
@@ -311,7 +319,8 @@ function SlateList({
       </div>
 
       {/* Slate list */}
-      <div className="flex-1 overflow-auto px-4 pb-6">
+      <div ref={scrollRef} className="relative flex-1 overflow-auto px-4 pb-6">
+        {pullIndicator}
         {loading ? (
           <div className="flex flex-col gap-2.5">
             {[0, 1, 2].map((i) => (
@@ -393,18 +402,20 @@ function SlateList({
 
 // ─── CalendarView ───────────────────────────────────────────────────────
 
-export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarViewProps) {
+export function CalendarView({ onTabSelect, onSlateTap, onFabTap, onRefresh }: CalendarViewProps) {
   const {
     year, month,
     daysWithFiles, followupDates,
     prevMonth, nextMonth, goToday,
     loading,
+    refresh: refreshCalendar,
   } = useCalendarMonth()
 
   const todayStr = getToday()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [slates, setSlates] = useState<SlateEntry[]>([])
   const [slateLoading, setSlateLoading] = useState(false)
+  const [slateReloadNonce, setSlateReloadNonce] = useState(0)
 
   // Check if viewing current month
   const now = new Date()
@@ -429,7 +440,19 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarView
       })
 
     return () => { cancelled = true }
-  }, [selectedDate])
+  }, [selectedDate, slateReloadNonce])
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const handlePull = useCallback(async () => {
+    if (onRefresh) await onRefresh()
+    refreshCalendar()
+    setSlateReloadNonce((n) => n + 1)
+  }, [onRefresh, refreshCalendar])
+
+  const { distance, refreshing, threshold } = usePullToRefresh({
+    scrollRef,
+    onRefresh: handlePull,
+  })
 
   const handleSelectDate = useCallback((dateStr: string, isCurrent: boolean) => {
     if (!isCurrent) {
@@ -492,6 +515,14 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap }: CalendarView
           slates={slates}
           loading={loading || slateLoading}
           onSlateTap={handleSlateTap}
+          scrollRef={scrollRef}
+          pullIndicator={
+            <PullToRefreshIndicator
+              distance={distance}
+              refreshing={refreshing}
+              threshold={threshold}
+            />
+          }
         />
       </div>
 

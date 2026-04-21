@@ -19,6 +19,7 @@ import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
 import { useOnline } from '@/hooks/useOnline'
 import { useMetaIndex } from '@/hooks/useMetaIndex'
+import { clearAllCaches } from '@/utils/refreshCaches'
 
 // ─── View state ─────────────────────────────────────────────────────────
 
@@ -37,13 +38,22 @@ type ViewState =
 function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const [viewState, setViewState] = useState<ViewState>({ view: 'home' })
   const [memoOpen, setMemoOpen] = useState(false)
-  const { categories, loading: treeLoading } = useWikiTree()
+  const { categories, loading: treeLoading, refresh: refreshWiki } = useWikiTree()
   const { document, loading: docLoading, error: docError, loadDocument, clearDocument } = useDocument()
-  const { slates: allSlates, followups: todayFollowups, daysWithFiles, followupDates, selectedDate, selectDate, loading: todayLoading } = useTodayFiles()
+  const { slates: allSlates, followups: todayFollowups, daysWithFiles, followupDates, selectedDate, selectDate, loading: todayLoading, refresh: refreshToday } = useTodayFiles()
   // Separate followup-type slates from regular slates (followups shown in Follow up section)
   const todaySlates = allSlates.filter((s) => s.type !== 'followup')
   const online = useOnline()
-  const { isIngested, loading: metaLoading } = useMetaIndex()
+  const { isIngested, loading: metaLoading, refresh: refreshMeta } = useMetaIndex()
+
+  const handleRefresh = useCallback(async () => {
+    await clearAllCaches()
+    await Promise.all([
+      Promise.resolve(refreshWiki()),
+      refreshToday(),
+      refreshMeta(),
+    ])
+  }, [refreshWiki, refreshToday, refreshMeta])
 
   // Build set of ingested slate IDs from current slates
   const ingestedIds = useMemo(() => {
@@ -205,6 +215,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
           onTabSelect={handleTabSelect}
           onSlateTap={handleSlateTap}
           onFabTap={handleFabTap}
+          onRefresh={handleRefresh}
         />
         <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
       </>
@@ -249,6 +260,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         onSearchTap={handleSearchTap}
         onTabSelect={handleTabSelect}
         onFabTap={handleFabTap}
+        onRefresh={handleRefresh}
       />
       <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
     </>

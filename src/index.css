@@ -16,3 +16,9 @@ html, body, #root {
   --sai-top: env(safe-area-inset-top, 0px);
   --sai-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Spinner animation for pull-to-refresh */
+@keyframes workwiki-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

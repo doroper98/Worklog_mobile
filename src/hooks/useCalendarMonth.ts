@@ -26,6 +26,8 @@ interface UseCalendarMonthResult {
   loading: boolean
   /** Error message if fetch failed */
   error: string | null
+  /** Re-fetch current month */
+  refresh: () => void
 }
 
 export function useCalendarMonth(): UseCalendarMonthResult {
@@ -36,6 +38,7 @@ export function useCalendarMonth(): UseCalendarMonthResult {
   const [followupDates, setFollowupDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -62,7 +65,11 @@ export function useCalendarMonth(): UseCalendarMonthResult {
       })
 
     return () => { cancelled = true }
-  }, [year, month])
+  }, [year, month, refreshNonce])
+
+  const refresh = useCallback(() => {
+    setRefreshNonce((n) => n + 1)
+  }, [])
 
   const prevMonth = useCallback(() => {
     if (month === 1) {
@@ -114,5 +121,6 @@ export function useCalendarMonth(): UseCalendarMonthResult {
     goToday,
     loading,
     error,
+    refresh,
   }
 }
