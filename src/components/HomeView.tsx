@@ -149,6 +149,147 @@ function getWeekStart(dateStr: string): Date {
   return d
 }
 
+const WEEK_ANIM_MS = 280
+
+function buildWeek(dateStr: string): string[] {
+  const start = getWeekStart(dateStr)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    return formatDate(d)
+  })
+}
+
+interface WeekCellProps {
+  dateStr: string
+  indexInWeek: number
+  selectedFor: string
+  todayStr: string
+  daysWithFiles: Set<number>
+  followupDates?: Set<string>
+  onSelect: (dateStr: string) => void
+}
+
+function WeekCell({
+  dateStr, indexInWeek, selectedFor, todayStr, daysWithFiles, followupDates, onSelect,
+}: WeekCellProps) {
+  const isToday = dateStr === todayStr
+  const isSelected = dateStr === selectedFor
+  const dayNum = parseInt(dateStr.split('-')[2], 10)
+  const isSun = indexInWeek === 0
+  const hasFile = daysWithFiles.has(dayNum)
+  const hasFollowup = followupDates?.has(dateStr) ?? false
+
+  let bg = 'transparent'
+  let txt = 'var(--color-text)'
+  let labelColor = isSun ? 'var(--color-danger)' : 'var(--color-text-muted)'
+  let dotBg = 'var(--color-accent)'
+
+  if (isToday && !isSelected) {
+    bg = 'var(--color-accent)'
+    txt = 'var(--color-accent-text-on)'
+    labelColor = 'rgba(255,255,255,0.8)'
+    dotBg = 'rgba(255,255,255,0.85)'
+  } else if (isSelected) {
+    bg = 'var(--color-accent-soft)'
+    txt = 'var(--color-accent)'
+    labelColor = 'var(--color-accent)'
+  } else if (isSun) {
+    txt = 'var(--color-danger)'
+  }
+
+  return (
+    <button
+      onClick={() => onSelect(dateStr)}
+      className="flex flex-col items-center border-none bg-transparent py-1"
+      style={{ cursor: 'pointer', borderRadius: 10 }}
+    >
+      <div
+        className="font-mono text-[9px] font-bold uppercase tracking-wider"
+        style={{
+          color: labelColor,
+          marginBottom: 4,
+          opacity: isSelected || isToday ? 1 : 0.85,
+        }}
+      >
+        {DOW_LABELS[indexInWeek]}
+      </div>
+      <div
+        className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full"
+        style={{
+          background: bg,
+          fontSize: 15,
+          fontWeight: isToday || isSelected ? 700 : 500,
+          color: txt,
+          fontVariantNumeric: 'tabular-nums',
+          transition: 'background 0.15s',
+        }}
+      >
+        {dayNum}
+        {hasFollowup && (
+          <span
+            className="absolute"
+            style={{
+              top: 2,
+              right: 2,
+              width: 5,
+              height: 5,
+              borderRadius: '50%',
+              background: '#ff3b30',
+            }}
+          />
+        )}
+      </div>
+      <span
+        className="mt-0.5"
+        style={{
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          background: hasFile ? dotBg : 'transparent',
+        }}
+      />
+    </button>
+  )
+}
+
+interface WeekGridProps {
+  days: string[]
+  selectedFor: string
+  todayStr: string
+  daysWithFiles: Set<number>
+  followupDates?: Set<string>
+  onSelect: (dateStr: string) => void
+}
+
+function WeekGrid(props: WeekGridProps) {
+  return (
+    <div className="grid grid-cols-7 gap-0.5" style={{ flex: '0 0 100%' }}>
+      {props.days.map((dateStr, i) => (
+        <WeekCell
+          key={dateStr}
+          dateStr={dateStr}
+          indexInWeek={i}
+          selectedFor={props.selectedFor}
+          todayStr={props.todayStr}
+          daysWithFiles={props.daysWithFiles}
+          followupDates={props.followupDates}
+          onSelect={props.onSelect}
+        />
+      ))}
+    </div>
+  )
+}
+
+interface WeekAnim {
+  direction: 'left' | 'right'
+  fromDays: string[]
+  fromSelected: string
+  toDays: string[]
+  toSelected: string
+  phase: 'pre' | 'running'
+}
+
 function WeekStrip({
   selectedDate,
   daysWithFiles,
@@ -161,49 +302,57 @@ function WeekStrip({
   onSelectDate: (dateStr: string) => void
 }) {
   const todayStr = getToday()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null)
-  const [animating, setAnimating] = useState(false)
+  const [anim, setAnim] = useState<WeekAnim | null>(null)
 
-  // Build week days (Sunday-based)
-  const weekDays = useMemo(() => {
-    const start = getWeekStart(selectedDate)
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start)
-      d.setDate(d.getDate() + i)
-      return formatDate(d)
-    })
-  }, [selectedDate])
+  const weekDays = useMemo(() => buildWeek(selectedDate), [selectedDate])
 
-  // Month label
   const selDate = new Date(selectedDate.replace(/-/g, '/'))
   const monthLabel = `${selDate.getFullYear()}년 ${selDate.getMonth() + 1}월`
 
   const navigateWeek = useCallback((dir: 'left' | 'right') => {
-    if (animating) return
-    setSlideDir(dir)
-    setAnimating(true)
+    if (anim) return
+    const offset = dir === 'left' ? -7 : 7
+    const current = new Date(selectedDate.replace(/-/g, '/'))
+    current.setDate(current.getDate() + offset)
+    const targetDate = formatDate(current)
+    const toDays = buildWeek(targetDate)
 
-    setTimeout(() => {
-      const offset = dir === 'left' ? -7 : 7
-      const current = new Date(selectedDate.replace(/-/g, '/'))
-      current.setDate(current.getDate() + offset)
-      onSelectDate(formatDate(current))
+    setAnim({
+      direction: dir,
+      fromDays: weekDays,
+      fromSelected: selectedDate,
+      toDays,
+      toSelected: targetDate,
+      phase: 'pre',
+    })
 
-      // Reset animation after state update
+    // Start transition on next frame so the browser commits the "pre" position first
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setSlideDir(null)
-        setAnimating(false)
+        setAnim((s) => (s ? { ...s, phase: 'running' } : null))
       })
-    }, 200)
-  }, [selectedDate, onSelectDate, animating])
+    })
 
-  // Slide transform
-  const slideTransform = slideDir === 'left'
-    ? 'translateX(-30px)'
-    : slideDir === 'right'
-      ? 'translateX(30px)'
-      : 'translateX(0)'
+    // Commit selection + tear down track once the transition completes
+    setTimeout(() => {
+      onSelectDate(targetDate)
+      setAnim(null)
+    }, WEEK_ANIM_MS)
+  }, [anim, selectedDate, weekDays, onSelectDate])
+
+  // Track-level transform. The track holds [from, to] for 'right' and [to, from] for 'left'
+  // so the running phase always lands on the "to" week.
+  let trackTransform = 'translateX(0)'
+  let trackTransition = 'none'
+  if (anim) {
+    const running = anim.phase === 'running'
+    if (anim.direction === 'right') {
+      trackTransform = running ? 'translateX(-50%)' : 'translateX(0%)'
+    } else {
+      trackTransform = running ? 'translateX(0%)' : 'translateX(-50%)'
+    }
+    trackTransition = running ? `transform ${WEEK_ANIM_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)` : 'none'
+  }
 
   return (
     <div className="px-4 pb-1.5 pt-3">
@@ -233,7 +382,6 @@ function WeekStrip({
 
         {/* Week navigation row */}
         <div className="flex items-center">
-          {/* Prev week arrow */}
           <button
             onClick={() => navigateWeek('left')}
             className="flex h-10 w-7 flex-shrink-0 items-center justify-center border-none bg-transparent"
@@ -242,103 +390,69 @@ function WeekStrip({
             <Icon name="chev-left" size={14} sw={2.2} />
           </button>
 
-          {/* 7 day cells with slide animation */}
-          <div
-            ref={containerRef}
-            className="grid flex-1 grid-cols-7 gap-0.5"
-            style={{
-              transform: slideTransform,
-              opacity: slideDir ? 0.3 : 1,
-              transition: slideDir
-                ? 'transform 0.2s ease-out, opacity 0.15s ease-out'
-                : 'transform 0.15s ease-out, opacity 0.15s ease-in',
-            }}
-          >
-            {weekDays.map((dateStr, i) => {
-              const isToday = dateStr === todayStr
-              const isSelected = dateStr === selectedDate
-              const dayNum = parseInt(dateStr.split('-')[2], 10)
-              const isSun = i === 0
-              const hasFile = daysWithFiles.has(dayNum)
-
-              const hasFollowup = followupDates?.has(dateStr) ?? false
-
-              let bg = 'transparent'
-              let txt = 'var(--color-text)'
-              let labelColor = isSun ? 'var(--color-danger)' : 'var(--color-text-muted)'
-              let dotBg = 'var(--color-accent)'
-
-              if (isToday && !isSelected) {
-                bg = 'var(--color-accent)'
-                txt = 'var(--color-accent-text-on)'
-                labelColor = 'rgba(255,255,255,0.8)'
-                dotBg = 'rgba(255,255,255,0.85)'
-              } else if (isSelected) {
-                bg = 'var(--color-accent-soft)'
-                txt = 'var(--color-accent)'
-                labelColor = 'var(--color-accent)'
-              } else if (isSun) {
-                txt = 'var(--color-danger)'
-              }
-
-              return (
-                <button
-                  key={dateStr}
-                  onClick={() => onSelectDate(dateStr)}
-                  className="flex flex-col items-center border-none bg-transparent py-1"
-                  style={{ cursor: 'pointer', borderRadius: 10 }}
-                >
-                  <div
-                    className="font-mono text-[9px] font-bold uppercase tracking-wider"
-                    style={{
-                      color: labelColor,
-                      marginBottom: 4,
-                      opacity: isSelected || isToday ? 1 : 0.85,
-                    }}
-                  >
-                    {DOW_LABELS[i]}
-                  </div>
-                  <div
-                    className="relative flex h-[34px] w-[34px] items-center justify-center rounded-full"
-                    style={{
-                      background: bg,
-                      fontSize: 15,
-                      fontWeight: isToday || isSelected ? 700 : 500,
-                      color: txt,
-                      fontVariantNumeric: 'tabular-nums',
-                      transition: 'background 0.15s',
-                    }}
-                  >
-                    {dayNum}
-                    {hasFollowup && (
-                      <span
-                        className="absolute"
-                        style={{
-                          top: 2,
-                          right: 2,
-                          width: 5,
-                          height: 5,
-                          borderRadius: '50%',
-                          background: '#ff3b30',
-                        }}
-                      />
-                    )}
-                  </div>
-                  <span
-                    className="mt-0.5"
-                    style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: 2,
-                      background: hasFile ? dotBg : 'transparent',
-                    }}
-                  />
-                </button>
-              )
-            })}
+          <div className="relative flex-1 overflow-hidden">
+            {anim ? (
+              <div
+                className="flex"
+                style={{
+                  width: '200%',
+                  transform: trackTransform,
+                  transition: trackTransition,
+                  pointerEvents: anim.phase === 'running' ? 'none' : undefined,
+                }}
+              >
+                {anim.direction === 'right' ? (
+                  <>
+                    <WeekGrid
+                      days={anim.fromDays}
+                      selectedFor={anim.fromSelected}
+                      todayStr={todayStr}
+                      daysWithFiles={daysWithFiles}
+                      followupDates={followupDates}
+                      onSelect={onSelectDate}
+                    />
+                    <WeekGrid
+                      days={anim.toDays}
+                      selectedFor={anim.toSelected}
+                      todayStr={todayStr}
+                      daysWithFiles={daysWithFiles}
+                      followupDates={followupDates}
+                      onSelect={onSelectDate}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <WeekGrid
+                      days={anim.toDays}
+                      selectedFor={anim.toSelected}
+                      todayStr={todayStr}
+                      daysWithFiles={daysWithFiles}
+                      followupDates={followupDates}
+                      onSelect={onSelectDate}
+                    />
+                    <WeekGrid
+                      days={anim.fromDays}
+                      selectedFor={anim.fromSelected}
+                      todayStr={todayStr}
+                      daysWithFiles={daysWithFiles}
+                      followupDates={followupDates}
+                      onSelect={onSelectDate}
+                    />
+                  </>
+                )}
+              </div>
+            ) : (
+              <WeekGrid
+                days={weekDays}
+                selectedFor={selectedDate}
+                todayStr={todayStr}
+                daysWithFiles={daysWithFiles}
+                followupDates={followupDates}
+                onSelect={onSelectDate}
+              />
+            )}
           </div>
 
-          {/* Next week arrow */}
           <button
             onClick={() => navigateWeek('right')}
             className="flex h-10 w-7 flex-shrink-0 items-center justify-center border-none bg-transparent"
