@@ -4,6 +4,7 @@ import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 
 interface MarkdownViewProps {
   title: string
@@ -93,7 +94,11 @@ export function MarkdownView({ title, path, content, loading, error, onBack, onT
           </div>
         ) : (
           <article className="ww-markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
+              components={{ code: MarkdownCodeBlock }}
+            >
               {content}
             </ReactMarkdown>
           </article>

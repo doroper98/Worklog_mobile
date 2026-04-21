@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 import { MetaIndexService } from '@/services/MetaIndexService'
 import type { MetaIndexEntry } from '@/services/MetaIndexService'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
@@ -183,7 +184,10 @@ export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent
         {/* ── Markdown body ── */}
         {markdownContent ? (
           <article className="ww-markdown px-1">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{ code: MarkdownCodeBlock }}
+            >
               {markdownContent}
             </ReactMarkdown>
           </article>
