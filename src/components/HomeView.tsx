@@ -264,7 +264,7 @@ interface WeekGridProps {
 
 function WeekGrid(props: WeekGridProps) {
   return (
-    <div className="grid grid-cols-7 gap-0.5" style={{ flex: '0 0 100%' }}>
+    <div className="grid grid-cols-7 gap-0.5">
       {props.days.map((dateStr, i) => (
         <WeekCell
           key={dateStr}
@@ -279,6 +279,11 @@ function WeekGrid(props: WeekGridProps) {
       ))}
     </div>
   )
+}
+
+/** Half-width slot for use inside the 200%-wide animation track */
+function WeekSlot({ children }: { children: React.ReactNode }) {
+  return <div style={{ flex: '0 0 50%', minWidth: 0 }}>{children}</div>
 }
 
 interface WeekAnim {
@@ -403,41 +408,49 @@ function WeekStrip({
               >
                 {anim.direction === 'right' ? (
                   <>
-                    <WeekGrid
-                      days={anim.fromDays}
-                      selectedFor={anim.fromSelected}
-                      todayStr={todayStr}
-                      daysWithFiles={daysWithFiles}
-                      followupDates={followupDates}
-                      onSelect={onSelectDate}
-                    />
-                    <WeekGrid
-                      days={anim.toDays}
-                      selectedFor={anim.toSelected}
-                      todayStr={todayStr}
-                      daysWithFiles={daysWithFiles}
-                      followupDates={followupDates}
-                      onSelect={onSelectDate}
-                    />
+                    <WeekSlot>
+                      <WeekGrid
+                        days={anim.fromDays}
+                        selectedFor={anim.fromSelected}
+                        todayStr={todayStr}
+                        daysWithFiles={daysWithFiles}
+                        followupDates={followupDates}
+                        onSelect={onSelectDate}
+                      />
+                    </WeekSlot>
+                    <WeekSlot>
+                      <WeekGrid
+                        days={anim.toDays}
+                        selectedFor={anim.toSelected}
+                        todayStr={todayStr}
+                        daysWithFiles={daysWithFiles}
+                        followupDates={followupDates}
+                        onSelect={onSelectDate}
+                      />
+                    </WeekSlot>
                   </>
                 ) : (
                   <>
-                    <WeekGrid
-                      days={anim.toDays}
-                      selectedFor={anim.toSelected}
-                      todayStr={todayStr}
-                      daysWithFiles={daysWithFiles}
-                      followupDates={followupDates}
-                      onSelect={onSelectDate}
-                    />
-                    <WeekGrid
-                      days={anim.fromDays}
-                      selectedFor={anim.fromSelected}
-                      todayStr={todayStr}
-                      daysWithFiles={daysWithFiles}
-                      followupDates={followupDates}
-                      onSelect={onSelectDate}
-                    />
+                    <WeekSlot>
+                      <WeekGrid
+                        days={anim.toDays}
+                        selectedFor={anim.toSelected}
+                        todayStr={todayStr}
+                        daysWithFiles={daysWithFiles}
+                        followupDates={followupDates}
+                        onSelect={onSelectDate}
+                      />
+                    </WeekSlot>
+                    <WeekSlot>
+                      <WeekGrid
+                        days={anim.fromDays}
+                        selectedFor={anim.fromSelected}
+                        todayStr={todayStr}
+                        daysWithFiles={daysWithFiles}
+                        followupDates={followupDates}
+                        onSelect={onSelectDate}
+                      />
+                    </WeekSlot>
                   </>
                 )}
               </div>
