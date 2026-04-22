@@ -4,6 +4,9 @@ import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { GitHubImage } from '@/components/GitHubImage'
+import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
+import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
 import type { SlateEntry } from '@/services/CalendarService'
 
@@ -106,9 +109,15 @@ export function SlateView({ slate, onBack, onTabSelect, onFabTap }: SlateViewPro
         }}
       >
         <article className="ww-markdown">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
-            {markdownContent}
-          </ReactMarkdown>
+          <MarkdownBaseContext.Provider value="">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
+              components={{ code: MarkdownCodeBlock, img: GitHubImage }}
+            >
+              {markdownContent}
+            </ReactMarkdown>
+          </MarkdownBaseContext.Provider>
         </article>
       </div>
 

@@ -53,6 +53,25 @@ export const GitHubClient = {
     return data.content
   },
 
+  /** Fetch a file as raw bytes (for images and other binary assets) */
+  async getBinaryFile(path: string): Promise<Uint8Array> {
+    const file = await request<FileContent | DirEntry[]>(`/contents/${path}`)
+    if (Array.isArray(file)) throw new Error(`"${path}" is a directory`)
+
+    let base64: string | null = null
+    if (file.content && file.encoding === 'base64') {
+      base64 = file.content
+    } else if (file.sha) {
+      const blobData = await request<{ content: string; encoding: string }>(`/git/blobs/${file.sha}`)
+      if (blobData.encoding === 'base64') base64 = blobData.content
+    }
+
+    if (!base64) throw new Error(`"${path}" has no readable content`)
+
+    const binary = atob(base64.replace(/\n/g, ''))
+    return Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  },
+
   /** Write file to inbox/ only. Runtime guard enforces path constraint. */
   async putContents(
     path: InboxPath,

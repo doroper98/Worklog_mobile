@@ -2,9 +2,8 @@
 export function htmlToMarkdown(html: string): string {
   if (!html) return ''
   let md = html
-    // Base64 images → placeholder
-    .replace(/<img[^>]*src="data:image\/[^"]*"[^>]*>/gi, '\n\n[이미지]\n\n')
-    // Regular images
+    // Images (data URLs and regular URLs both pass through; GitHubImage
+    // handles authenticated fetch at render time)
     .replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, '![$2]($1)')
     .replace(/<img[^>]*src="([^"]*)"[^>]*>/gi, '![]($1)')
     // Block elements to newlines

@@ -1,9 +1,12 @@
+import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
+import { GitHubImage } from '@/components/GitHubImage'
+import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
 import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 
 interface MarkdownViewProps {
@@ -25,6 +28,12 @@ const TAB_ITEMS = [
 ]
 
 export function MarkdownView({ title, path, content, loading, error, onBack, onTabSelect, onFabTap }: MarkdownViewProps) {
+  const basePath = useMemo(() => {
+    const parts = path.split('/')
+    parts.pop()
+    return parts.join('/')
+  }, [path])
+
   return (
     <div
       className="relative flex h-full flex-col overflow-hidden font-sans"
@@ -94,13 +103,15 @@ export function MarkdownView({ title, path, content, loading, error, onBack, onT
           </div>
         ) : (
           <article className="ww-markdown">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
-              components={{ code: MarkdownCodeBlock }}
-            >
-              {content}
-            </ReactMarkdown>
+            <MarkdownBaseContext.Provider value={basePath}>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
+                components={{ code: MarkdownCodeBlock, img: GitHubImage }}
+              >
+                {content}
+              </ReactMarkdown>
+            </MarkdownBaseContext.Provider>
           </article>
         )}
       </div>
