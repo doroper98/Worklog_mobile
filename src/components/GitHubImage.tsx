@@ -53,12 +53,15 @@ export function GitHubImage({ src, alt, ...rest }: ImgProps) {
   const basePath = useContext(MarkdownBaseContext)
   const [resolved, setResolved] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [debug, setDebug] = useState<{ src: string; repoPath: string | null; error?: string } | null>(null)
 
   useEffect(() => {
     setFailed(false)
+    setDebug(null)
 
     if (!src) {
       setFailed(true)
+      setDebug({ src: '(empty)', repoPath: null, error: 'src missing' })
       return
     }
 
@@ -82,6 +85,7 @@ export function GitHubImage({ src, alt, ...rest }: ImgProps) {
 
     if (!repoPath) {
       setFailed(true)
+      setDebug({ src, repoPath: null, error: 'could not resolve to repo path' })
       return
     }
 
@@ -100,8 +104,10 @@ export function GitHubImage({ src, alt, ...rest }: ImgProps) {
         blobCache.set(repoPath!, url)
         setResolved(url)
       })
-      .catch(() => {
-        if (!cancelled) setFailed(true)
+      .catch((err) => {
+        if (cancelled) return
+        setFailed(true)
+        setDebug({ src, repoPath, error: err instanceof Error ? err.message : String(err) })
       })
 
     return () => { cancelled = true }
@@ -110,14 +116,33 @@ export function GitHubImage({ src, alt, ...rest }: ImgProps) {
   if (failed) {
     return (
       <span
-        className="my-2 inline-block rounded border px-2 py-1 font-mono text-[11px]"
+        className="my-2 block overflow-auto rounded border px-2 py-2 font-mono text-[10px]"
         style={{
           background: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
+          borderColor: 'var(--color-danger)',
           color: 'var(--color-text-muted)',
+          wordBreak: 'break-all',
         }}
       >
-        [이미지 로드 실패{alt ? `: ${alt}` : ''}]
+        <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>
+          [이미지 로드 실패{alt ? `: ${alt}` : ''}]
+        </span>
+        {debug && (
+          <>
+            <br />src: <span style={{ color: 'var(--color-text)' }}>{debug.src}</span>
+            <br />base: <span style={{ color: 'var(--color-text)' }}>{basePath || '(root)'}</span>
+            {debug.repoPath && (
+              <>
+                <br />resolved: <span style={{ color: 'var(--color-text)' }}>{debug.repoPath}</span>
+              </>
+            )}
+            {debug.error && (
+              <>
+                <br />error: <span style={{ color: 'var(--color-text)' }}>{debug.error}</span>
+              </>
+            )}
+          </>
+        )}
       </span>
     )
   }
