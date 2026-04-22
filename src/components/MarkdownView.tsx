@@ -8,6 +8,7 @@ import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
 import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
+import { safeUrlTransform } from '@/utils/safeUrlTransform'
 
 interface MarkdownViewProps {
   title: string
@@ -107,6 +108,7 @@ export function MarkdownView({ title, path, content, loading, error, onBack, onT
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
+                urlTransform={safeUrlTransform}
                 components={{ code: MarkdownCodeBlock, img: GitHubImage }}
               >
                 {content}

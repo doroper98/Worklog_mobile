@@ -8,6 +8,7 @@ import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
 import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
+import { safeUrlTransform } from '@/utils/safeUrlTransform'
 import type { SlateEntry } from '@/services/CalendarService'
 
 interface SlateViewProps {
@@ -113,6 +114,7 @@ export function SlateView({ slate, onBack, onTabSelect, onFabTap }: SlateViewPro
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
+              urlTransform={safeUrlTransform}
               components={{ code: MarkdownCodeBlock, img: GitHubImage }}
             >
               {markdownContent}

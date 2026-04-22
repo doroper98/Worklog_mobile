@@ -10,6 +10,7 @@ import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
 import { MetaIndexService } from '@/services/MetaIndexService'
 import type { MetaIndexEntry } from '@/services/MetaIndexService'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
+import { safeUrlTransform } from '@/utils/safeUrlTransform'
 
 interface SlateMetaViewProps {
   slateId: string
@@ -189,6 +190,7 @@ export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent
             <MarkdownBaseContext.Provider value="">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
+                urlTransform={safeUrlTransform}
                 components={{ code: MarkdownCodeBlock, img: GitHubImage }}
               >
                 {markdownContent}
