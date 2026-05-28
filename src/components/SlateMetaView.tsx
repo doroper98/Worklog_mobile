@@ -138,9 +138,18 @@ export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent
                 <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
                   요약
                 </div>
-                <div className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text)' }}>
-                  {entry.summary}
-                </div>
+                <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                  {entry.summary.split('\n').map((line) => line.trim()).filter(Boolean).map((line, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-[13px] leading-relaxed"
+                      style={{ color: 'var(--color-text)' }}
+                    >
+                      <span className="flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>-</span>
+                      <span className="flex-1">{line}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
