@@ -34,12 +34,33 @@
 
 .ww-markdown ul,
 .ww-markdown ol {
-  padding-left: 1.25em;
+  padding-left: 1.5em;
   margin: 0 0 0.75em;
+}
+
+/* Tailwind preflight resets list-style; restore so markdown bullets show */
+.ww-markdown ul {
+  list-style: disc;
+}
+
+.ww-markdown ol {
+  list-style: decimal;
+}
+
+.ww-markdown ul ul {
+  list-style: circle;
+}
+
+.ww-markdown ul ul ul {
+  list-style: square;
 }
 
 .ww-markdown li {
   margin: 0.25em 0;
+}
+
+.ww-markdown li::marker {
+  color: var(--color-text-muted);
 }
 
 .ww-markdown a {
