@@ -188,10 +188,10 @@ export function SearchView({ onFileTap, onBack }: SearchViewProps) {
         {indexBuilding && (
           <div className="px-5 py-8 text-center">
             <div className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-              검색 인덱스 구축 중...
+              검색 인덱스 준비 중...
             </div>
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Wiki 문서를 불러오고 있습니다.
+              파일 목록을 불러오고 있습니다.
             </div>
           </div>
         )}

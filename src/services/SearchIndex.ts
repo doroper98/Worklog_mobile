@@ -8,7 +8,6 @@ export interface SearchDocument {
   path: string
   name: string
   category: string
-  content: string
 }
 
 export interface SearchResult {
@@ -26,7 +25,7 @@ let buildPromise: Promise<void> | null = null
 
 function createIndex(): MiniSearch<SearchDocument> {
   return new MiniSearch<SearchDocument>({
-    fields: ['name', 'content'],
+    fields: ['name', 'path'],
     storeFields: ['path', 'name', 'category'],
     searchOptions: {
       boost: { name: 3 },
@@ -71,44 +70,27 @@ export const SearchIndex = {
   },
 
   async _doBuild(): Promise<void> {
+    // Filename-only index: one /git/trees call covers every wiki file at
+    // once. Per-blob content fetches were O(N) API calls and a few hundred
+    // wiki notes stalled the build for minutes. Name + path search covers
+    // the common case (人物·프로젝트·이슈명 찾기); deep content search
+    // would need a background enrichment pass added separately.
     const sha = await GitHubClient.getLatestCommitSha()
     const tree = await GitHubClient.getTree(sha, true)
 
-    // Filter to wiki .md files
     const wikiFiles = tree.filter(
       (n: TreeNode) => n.type === 'blob' && n.path.endsWith('.md') && n.path.startsWith('wiki/'),
     )
 
     const newIndex = createIndex()
-
-    // Fetch content for each file (in batches to avoid rate limiting)
-    const BATCH_SIZE = 10
-    for (let i = 0; i < wikiFiles.length; i += BATCH_SIZE) {
-      const batch = wikiFiles.slice(i, i + BATCH_SIZE)
-      const docs = await Promise.all(
-        batch.map(async (node) => {
-          try {
-            const content = await GitHubClient.getBlob(node.sha)
-            return {
-              id: node.path,
-              path: node.path,
-              name: formatName(node.path),
-              category: categorize(node.path),
-              content,
-            }
-          } catch {
-            return {
-              id: node.path,
-              path: node.path,
-              name: formatName(node.path),
-              category: categorize(node.path),
-              content: '',
-            }
-          }
-        }),
-      )
-      newIndex.addAll(docs)
-    }
+    newIndex.addAll(
+      wikiFiles.map((node) => ({
+        id: node.path,
+        path: node.path,
+        name: formatName(node.path),
+        category: categorize(node.path),
+      })),
+    )
 
     index = newIndex
   },
