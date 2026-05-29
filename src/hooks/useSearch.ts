@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 import { SearchIndex } from '@/services/SearchIndex'
-import type { SearchResult } from '@/services/SearchIndex'
+import type { SearchResult, EnrichmentProgress } from '@/services/SearchIndex'
 
 interface UseSearchResult {
   query: string
@@ -11,6 +11,8 @@ interface UseSearchResult {
   setCategoryFilter: (cat: string | undefined) => void
   indexReady: boolean
   indexBuilding: boolean
+  enriching: boolean
+  enrichmentProgress: EnrichmentProgress
 }
 
 export function useSearch(): UseSearchResult {
@@ -19,6 +21,10 @@ export function useSearch(): UseSearchResult {
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined)
   const [indexReady, setIndexReady] = useState(SearchIndex.isReady)
   const [indexBuilding, setIndexBuilding] = useState(false)
+  const [enriching, setEnriching] = useState(SearchIndex.isEnriching)
+  const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress>(
+    SearchIndex.enrichmentProgress,
+  )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Build index on mount if not ready
@@ -29,16 +35,32 @@ export function useSearch(): UseSearchResult {
         .then(() => {
           setIndexReady(true)
           setIndexBuilding(false)
+          setEnriching(SearchIndex.isEnriching)
+          setEnrichmentProgress(SearchIndex.enrichmentProgress)
         })
         .catch(() => {
           setIndexBuilding(false)
         })
     } else if (SearchIndex.isReady) {
       setIndexReady(true)
+      setEnriching(SearchIndex.isEnriching)
+      setEnrichmentProgress(SearchIndex.enrichmentProgress)
     }
   }, [])
 
-  // Debounced search
+  // Poll enrichment progress while running so results can refresh
+  useEffect(() => {
+    if (!enriching) return
+    const interval = setInterval(() => {
+      setEnrichmentProgress(SearchIndex.enrichmentProgress)
+      if (!SearchIndex.isEnriching) {
+        setEnriching(false)
+      }
+    }, 600)
+    return () => clearInterval(interval)
+  }, [enriching])
+
+  // Debounced search — re-runs when enrichment makes progress
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
@@ -55,7 +77,7 @@ export function useSearch(): UseSearchResult {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query, categoryFilter, indexReady])
+  }, [query, categoryFilter, indexReady, enrichmentProgress])
 
   const handleSetQuery = useCallback((q: string) => {
     setQuery(q)
@@ -73,5 +95,7 @@ export function useSearch(): UseSearchResult {
     setCategoryFilter: handleSetCategory,
     indexReady,
     indexBuilding,
+    enriching,
+    enrichmentProgress,
   }
 }

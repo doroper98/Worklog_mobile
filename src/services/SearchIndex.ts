@@ -8,6 +8,7 @@ export interface SearchDocument {
   path: string
   name: string
   category: string
+  content: string
 }
 
 export interface SearchResult {
@@ -19,20 +20,72 @@ export interface SearchResult {
   score: number
 }
 
+export interface EnrichmentProgress {
+  done: number
+  total: number
+}
+
 let index: MiniSearch<SearchDocument> | null = null
 let building = false
 let buildPromise: Promise<void> | null = null
 
+let enriching = false
+let enrichmentDone = 0
+let enrichmentTotal = 0
+let enrichmentToken = 0
+
 function createIndex(): MiniSearch<SearchDocument> {
   return new MiniSearch<SearchDocument>({
-    fields: ['name', 'path'],
+    fields: ['name', 'path', 'content'],
     storeFields: ['path', 'name', 'category'],
     searchOptions: {
-      boost: { name: 3 },
+      boost: { name: 3, path: 1.5 },
       prefix: true,
       fuzzy: 0.2,
     },
   })
+}
+
+async function enrichWithContent(
+  files: TreeNode[],
+  idx: MiniSearch<SearchDocument>,
+  myToken: number,
+): Promise<void> {
+  enriching = true
+  enrichmentDone = 0
+  enrichmentTotal = files.length
+
+  const CONCURRENCY = 6
+  let cursor = 0
+
+  async function worker(): Promise<void> {
+    while (cursor < files.length) {
+      if (enrichmentToken !== myToken) return
+      const i = cursor++
+      const node = files[i]
+      try {
+        const content = await GitHubClient.getBlob(node.sha)
+        if (enrichmentToken !== myToken) return
+        idx.replace({
+          id: node.path,
+          path: node.path,
+          name: formatName(node.path),
+          category: categorize(node.path),
+          content,
+        })
+      } catch {
+        // skip — this file just stays name-only in the index
+      } finally {
+        enrichmentDone++
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
+
+  if (enrichmentToken === myToken) {
+    enriching = false
+  }
 }
 
 function categorize(path: string): string {
@@ -70,11 +123,10 @@ export const SearchIndex = {
   },
 
   async _doBuild(): Promise<void> {
-    // Filename-only index: one /git/trees call covers every wiki file at
-    // once. Per-blob content fetches were O(N) API calls and a few hundred
-    // wiki notes stalled the build for minutes. Name + path search covers
-    // the common case (人物·프로젝트·이슈명 찾기); deep content search
-    // would need a background enrichment pass added separately.
+    // Two-stage build: the /git/trees call gives every wiki path at once
+    // so the index becomes searchable by name + path within a second.
+    // Per-blob content fetches then enrich docs in the background so
+    // 본문 search results fill in without blocking ready state.
     const sha = await GitHubClient.getLatestCommitSha()
     const tree = await GitHubClient.getTree(sha, true)
 
@@ -89,10 +141,15 @@ export const SearchIndex = {
         path: node.path,
         name: formatName(node.path),
         category: categorize(node.path),
+        content: '',
       })),
     )
 
     index = newIndex
+
+    // Kick off background content enrichment; do not await
+    enrichmentToken++
+    void enrichWithContent(wikiFiles, newIndex, enrichmentToken)
   },
 
   /** Search the index */
@@ -130,8 +187,20 @@ export const SearchIndex = {
     return index?.documentCount ?? 0
   },
 
+  /** Whether background content enrichment is still running */
+  get isEnriching(): boolean {
+    return enriching
+  },
+
+  /** Background enrichment progress */
+  get enrichmentProgress(): EnrichmentProgress {
+    return { done: enrichmentDone, total: enrichmentTotal }
+  },
+
   /** Drop the built index so the next build() starts fresh */
   clearIndex(): void {
     index = null
+    enrichmentToken++ // cancel any in-flight enrichment
+    enriching = false
   },
 } as const

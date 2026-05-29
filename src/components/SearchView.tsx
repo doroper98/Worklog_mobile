@@ -108,6 +108,7 @@ export function SearchView({ onFileTap, onBack }: SearchViewProps) {
     results,
     categoryFilter, setCategoryFilter,
     indexReady, indexBuilding,
+    enriching, enrichmentProgress,
   } = useSearch()
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -192,6 +193,31 @@ export function SearchView({ onFileTap, onBack }: SearchViewProps) {
             </div>
             <div className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
               파일 목록을 불러오고 있습니다.
+            </div>
+          </div>
+        )}
+
+        {indexReady && enriching && enrichmentProgress.total > 0 && (
+          <div
+            className="flex items-center justify-center gap-2 px-5 py-2 font-mono text-[10px]"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <span>본문 검색 인덱싱</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {enrichmentProgress.done} / {enrichmentProgress.total}
+            </span>
+            <div
+              className="h-0.5 w-16 overflow-hidden rounded"
+              style={{ background: 'var(--color-surface-alt)' }}
+            >
+              <div
+                className="h-full"
+                style={{
+                  width: `${(enrichmentProgress.done / enrichmentProgress.total) * 100}%`,
+                  background: 'var(--color-accent)',
+                  transition: 'width 0.4s ease-out',
+                }}
+              />
             </div>
           </div>
         )}
