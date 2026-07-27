@@ -6,10 +6,12 @@ import { PullToRefreshIndicator } from '@/components/PullToRefreshIndicator'
 import type { WikiCategory } from '@/hooks/useWikiTree'
 import type { SlateEntry, FollowupItem } from '@/services/CalendarService'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useReports } from '@/hooks/useReports'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import {
   formatDate, getToday, DOW_LABELS,
 } from '@/utils/calendarUtils'
+import { formatReportRange } from '@/utils/reportFormat'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ interface HomeViewProps {
   onSlateTap: (slate: SlateEntry) => void
   onMdTap?: (slate: SlateEntry) => void
   onSearchTap: () => void
+  onReportsTap?: () => void
   onTabSelect: (tab: string) => void
   onFabTap?: () => void
   /** Pull-to-refresh handler */
@@ -674,6 +677,53 @@ function FollowupList({ items }: { items: FollowupItem[] }) {
   )
 }
 
+// ─── Reports card ─────────────────────────────────────────────────────────
+
+function ReportsCard({ onTap }: { onTap?: () => void }) {
+  const { reports, loading } = useReports()
+  const latest = reports[0]
+
+  // Hide entirely until we know whether any report exists (avoids a flash of
+  // an empty card), and hide if there are genuinely none.
+  if (loading || !latest) return null
+
+  return (
+    <>
+      <div className="h-[22px]" />
+      <SectionHeader title="주간보고" />
+      <button
+      onClick={onTap}
+      className="mx-4 flex w-[calc(100%-2rem)] items-center gap-3 rounded-[18px] border p-3.5 text-left"
+      style={{
+        background: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+        boxShadow: 'var(--glass-shadow)',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[11px]"
+        style={{
+          background: 'color-mix(in srgb, var(--color-daily) 12%, transparent)',
+          color: 'var(--color-daily)',
+        }}
+      >
+        <Icon name="calendar" size={18} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-display text-[15px] font-bold tracking-tight" style={{ color: 'var(--color-text)' }}>
+          주간보고
+        </div>
+        <div className="mt-0.5 truncate text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
+          최신 · {formatReportRange(latest.dateFrom, latest.dateTo)}
+        </div>
+      </div>
+      <Icon name="chev-right" size={16} color="var(--color-text-faint)" sw={2} />
+      </button>
+    </>
+  )
+}
+
 // ─── Wiki grid ──────────────────────────────────────────────────────────
 
 function WikiGrid({ categories, loading, onTap }: {
@@ -800,6 +850,7 @@ export function HomeView({
   onSlateTap,
   onMdTap,
   onSearchTap,
+  onReportsTap,
   onTabSelect,
   onFabTap,
   onRefresh,
@@ -866,6 +917,9 @@ export function HomeView({
             <FollowupList items={todayFollowups} />
           </>
         )}
+
+        {/* Weekly reports */}
+        <ReportsCard onTap={onReportsTap} />
 
         {/* Wiki */}
         <div className="h-[22px]" />

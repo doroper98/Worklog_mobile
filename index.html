@@ -10,6 +10,14 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icons/192.png" />
   <title>Workwiki Mobile</title>
+  <script>
+    // FOUC guard: apply a pinned theme before first paint (§4.6-1).
+    // 'system' is left for the media query / useTheme to resolve.
+    try {
+      var t = localStorage.getItem('theme')
+      if (t && t !== 'system') document.documentElement.setAttribute('data-theme', t)
+    } catch (e) { /* private mode / no storage */ }
+  </script>
 </head>
 <body>
   <div id="root"></div>

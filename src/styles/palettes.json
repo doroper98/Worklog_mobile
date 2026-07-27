@@ -1,0 +1,85 @@
+{
+  "note": "Single source for the ported desktop themes. Each theme declares only 5 colors; every other token is derived by scripts/gen-themes.mjs. Values mirror the desktop Workwiki theme set (dark family) and should be re-synced by hand if the desktop palette changes (see improvement plan §4.7).",
+  "palettes": [
+    {
+      "key": "cyprus",
+      "label": "사이프러스",
+      "mode": "dark",
+      "primary": "#5FB98E",
+      "bg": "#101A14",
+      "bg2": "#0B140F",
+      "surface": "#17251C",
+      "text": "#DCE8DF"
+    },
+    {
+      "key": "noturno",
+      "label": "노투르노",
+      "mode": "dark",
+      "primary": "#8AA0E8",
+      "bg": "#12141F",
+      "bg2": "#0C0E17",
+      "surface": "#1B1E2E",
+      "text": "#D6DBF0"
+    },
+    {
+      "key": "bridal",
+      "label": "브라이덜",
+      "mode": "dark",
+      "primary": "#FFB38F",
+      "bg": "#2A1626",
+      "bg2": "#1F1019",
+      "surface": "#3A2033",
+      "text": "#F3E2EC"
+    },
+    {
+      "key": "cosmos",
+      "label": "코스모스",
+      "mode": "dark",
+      "primary": "#B98AE8",
+      "bg": "#16121F",
+      "bg2": "#100C17",
+      "surface": "#211B2E",
+      "text": "#E4DBF0"
+    },
+    {
+      "key": "laurel",
+      "label": "로렐",
+      "mode": "dark",
+      "primary": "#B1B7AB",
+      "bg": "#1A1D16",
+      "bg2": "#12140F",
+      "surface": "#24281E",
+      "text": "#E4E7DC"
+    },
+    {
+      "key": "princess",
+      "label": "프린세스",
+      "mode": "dark",
+      "primary": "#FF9EC4",
+      "bg": "#015AA0",
+      "bg2": "#01467C",
+      "surface": "#0E6AB0",
+      "text": "#EAF4FF"
+    },
+    {
+      "key": "steel",
+      "label": "스틸",
+      "mode": "dark",
+      "primary": "#8FB0C9",
+      "bg": "#171A1E",
+      "bg2": "#101216",
+      "surface": "#232830",
+      "text": "#DCE3EA"
+    },
+    {
+      "key": "navy",
+      "label": "네이비",
+      "mode": "dark",
+      "primary": "#7FA8E0",
+      "bg": "#0E1424",
+      "bg2": "#090E1A",
+      "surface": "#182034",
+      "text": "#D6DEF0"
+    }
+  ]
+}

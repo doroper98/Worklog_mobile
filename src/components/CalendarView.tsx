@@ -12,6 +12,8 @@ import { buildMonthCells, getToday, DOW_LABELS, DOW_FULL, formatDate } from '@/u
 // ─── Types ──────────────────────────────────────────────────────────────
 
 interface CalendarViewProps {
+  /** Initial selected date (YYYY-MM-DD). Defaults to today. */
+  initialDate?: string
   onTabSelect: (tab: string) => void
   onSlateTap: (slate: SlateEntry) => void
   onFabTap?: () => void
@@ -402,7 +404,7 @@ function SlateList({
 
 // ─── CalendarView ───────────────────────────────────────────────────────
 
-export function CalendarView({ onTabSelect, onSlateTap, onFabTap, onRefresh }: CalendarViewProps) {
+export function CalendarView({ initialDate, onTabSelect, onSlateTap, onFabTap, onRefresh }: CalendarViewProps) {
   const {
     year, month,
     daysWithFiles, followupDates,
@@ -412,7 +414,7 @@ export function CalendarView({ onTabSelect, onSlateTap, onFabTap, onRefresh }: C
   } = useCalendarMonth()
 
   const todayStr = getToday()
-  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? todayStr)
   const [slates, setSlates] = useState<SlateEntry[]>([])
   const [slateLoading, setSlateLoading] = useState(false)
   const [slateReloadNonce, setSlateReloadNonce] = useState(0)

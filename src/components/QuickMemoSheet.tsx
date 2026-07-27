@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { InboxWriter } from '@/services/InboxWriter'
+import type { MemoKind } from '@/services/InboxWriter'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -12,6 +13,19 @@ interface QuickMemoSheetProps {
 }
 
 type SheetState = 'editing' | 'sending' | 'success' | 'error'
+
+const KIND_CHIPS: { key: MemoKind; label: string }[] = [
+  { key: 'memo', label: '메모' },
+  { key: 'meeting', label: '회의' },
+  { key: 'task', label: '할일' },
+  { key: 'append', label: '이어쓰기' },
+]
+
+/** Today (KST) as YYYY-MM-DD, for the target-date default. */
+function kstTodayStr(): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}`
+}
 
 // ─── Web Speech API type declarations ───────────────────────────────────
 
@@ -72,6 +86,11 @@ function getSpeechRecognition(): SpeechRecognition | null {
 
 export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
   const [text, setText] = useState('')
+  const [kind, setKind] = useState<MemoKind>('memo')
+  const [title, setTitle] = useState('')
+  const [targetDate, setTargetDate] = useState(kstTodayStr)
+  const [attendees, setAttendees] = useState('')
+  const [slateRef, setSlateRef] = useState('')
   const [state, setState] = useState<SheetState>('editing')
   const [errorMsg, setErrorMsg] = useState('')
   const [listening, setListening] = useState(false)
@@ -83,6 +102,11 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
   useEffect(() => {
     if (open) {
       setState('editing')
+      setKind('memo')
+      setTitle('')
+      setTargetDate(kstTodayStr())
+      setAttendees('')
+      setSlateRef('')
       setTimeout(() => textareaRef.current?.focus(), 100)
     } else {
       // Stop recognition when sheet closes
@@ -97,11 +121,32 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
   const handleSend = useCallback(async () => {
     if (!text.trim() || state === 'sending') return
 
+    // Per-kind required fields.
+    if ((kind === 'meeting' || kind === 'task') && !title.trim()) {
+      setState('error')
+      setErrorMsg(kind === 'meeting' ? '회의 제목을 입력하세요.' : '할일 제목을 입력하세요.')
+      return
+    }
+    if (kind === 'append' && !slateRef.trim()) {
+      setState('error')
+      setErrorMsg('이어쓸 대상 슬레이트를 입력하세요.')
+      return
+    }
+
     setState('sending')
     setErrorMsg('')
 
     try {
-      await InboxWriter.submit(text)
+      await InboxWriter.submitMemo({
+        text,
+        kind,
+        title: kind === 'memo' ? undefined : title.trim() || undefined,
+        targetDate: kind === 'memo' ? undefined : targetDate,
+        attendees: kind === 'meeting'
+          ? attendees.split(',').map((a) => a.trim()).filter(Boolean)
+          : undefined,
+        targetSlateRef: kind === 'append' ? slateRef.trim() : undefined,
+      })
       setState('success')
       setTimeout(() => {
         setText('')
@@ -112,7 +157,7 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
       setState('error')
       setErrorMsg(err instanceof Error ? err.message : '전송에 실패했습니다.')
     }
-  }, [text, state, onClose])
+  }, [text, kind, title, targetDate, attendees, slateRef, state, onClose])
 
   const handleClose = useCallback(() => {
     if (state === 'sending') return
@@ -122,6 +167,10 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
       setListening(false)
     }
     setText('')
+    setKind('memo')
+    setTitle('')
+    setAttendees('')
+    setSlateRef('')
     setState('editing')
     setErrorMsg('')
     onClose()
@@ -194,8 +243,12 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
 
   if (!open) return null
 
-  const canSend = text.trim().length > 0 && state === 'editing'
+  const requiredOk =
+    (kind !== 'meeting' && kind !== 'task' ? true : title.trim().length > 0) &&
+    (kind !== 'append' ? true : slateRef.trim().length > 0)
+  const canSend = text.trim().length > 0 && requiredOk && state === 'editing'
   const hasSpeechAPI = !!(window.SpeechRecognition ?? window.webkitSpeechRecognition)
+  const expanded = kind !== 'memo'
 
   return (
     <div
@@ -268,6 +321,72 @@ export function QuickMemoSheet({ open, onClose }: QuickMemoSheetProps) {
           </div>
         ) : (
           <>
+            {/* Type chips */}
+            <div className="mb-3 flex items-center gap-1.5">
+              {KIND_CHIPS.map((chip) => {
+                const on = chip.key === kind
+                return (
+                  <button
+                    key={chip.key}
+                    onClick={() => setKind(chip.key)}
+                    className="rounded-full border px-3 py-1.5 text-[12px] font-semibold"
+                    style={{
+                      background: on ? 'var(--color-accent)' : 'var(--color-surface)',
+                      color: on ? 'var(--color-accent-text-on)' : 'var(--color-text-sec)',
+                      borderColor: on ? 'var(--color-accent)' : 'var(--color-border)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Expanded fields for non-memo kinds */}
+            {expanded && (
+              <div className="mb-3 flex flex-col gap-2">
+                {kind === 'append' ? (
+                  <input
+                    value={slateRef}
+                    onChange={(e) => setSlateRef(e.target.value)}
+                    placeholder="이어쓸 대상 슬레이트 (제목 또는 id)"
+                    className="rounded-xl border px-3 py-2.5 text-sm outline-none"
+                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                ) : (
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={kind === 'meeting' ? '회의 제목' : '할일 제목'}
+                    className="rounded-xl border px-3 py-2.5 text-sm outline-none"
+                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  <label className="flex-shrink-0 text-[12px]" style={{ color: 'var(--color-text-muted)' }}>
+                    귀속 날짜
+                  </label>
+                  <input
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className="flex-1 rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                </div>
+                {kind === 'meeting' && (
+                  <input
+                    value={attendees}
+                    onChange={(e) => setAttendees(e.target.value)}
+                    placeholder="참석자 (쉼표로 구분, 선택)"
+                    className="rounded-xl border px-3 py-2.5 text-sm outline-none"
+                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  />
+                )}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               value={text}

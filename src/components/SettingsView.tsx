@@ -5,6 +5,7 @@ import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { useThemeContext } from '@/components/primitives/ThemeProvider'
 import { AuthManager } from '@/services/AuthManager'
 import type { ThemeSetting, GlassPerf } from '@/types'
+import { PALETTES } from '@/styles/palettes'
 import { applyGlassPerf } from '@/utils/deviceCapabilities'
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ function Row({
   onTap,
   last,
   danger,
+  swatch,
 }: {
   label: string
   detail?: string
@@ -56,6 +58,7 @@ function Row({
   onTap?: () => void
   last?: boolean
   danger?: boolean
+  swatch?: React.ReactNode
 }) {
   return (
     <button
@@ -66,11 +69,14 @@ function Row({
         cursor: onTap ? 'pointer' : 'default',
       }}
     >
-      <span
-        className="text-[14px] font-medium"
-        style={{ color: danger ? 'var(--color-danger)' : 'var(--color-text)' }}
-      >
-        {label}
+      <span className="flex items-center gap-2.5">
+        {swatch}
+        <span
+          className="text-[14px] font-medium"
+          style={{ color: danger ? 'var(--color-danger)' : 'var(--color-text)' }}
+        >
+          {label}
+        </span>
       </span>
       <div className="flex items-center gap-2">
         {detail && (
@@ -83,6 +89,18 @@ function Row({
         )}
       </div>
     </button>
+  )
+}
+
+/** Small two-tone chip previewing a theme's background + accent. */
+function ThemeSwatch({ bg, accent }: { bg: string; accent: string }) {
+  return (
+    <span
+      className="flex h-5 w-5 items-center justify-center rounded-full"
+      style={{ background: bg, boxShadow: 'inset 0 0 0 1px var(--color-border-strong)' }}
+    >
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: accent }} />
+    </span>
   )
 }
 
@@ -184,6 +202,23 @@ export function SettingsView({ onTabSelect, onLogout }: SettingsViewProps) {
             ))}
           </Section>
 
+          {/* Ported desktop themes (fixed, ignore system scheme) */}
+          <Section title="테마 컬렉션 (고정)">
+            {PALETTES.map((p, i) => (
+              <Row
+                key={p.key}
+                label={p.label}
+                swatch={<ThemeSwatch bg={p.bg} accent={p.primary} />}
+                active={setting === p.key}
+                onTap={() => setTheme(p.key)}
+                last={i === PALETTES.length - 1}
+              />
+            ))}
+          </Section>
+          <div className="mb-5 -mt-3 px-2 text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+            컬렉션 테마를 고르면 시스템 라이트/다크 설정과 무관하게 고정됩니다.
+          </div>
+
           {/* Glass performance */}
           <Section title="Liquid Glass 효과">
             {GLASS_OPTIONS.map((opt, i) => (
@@ -205,7 +240,7 @@ export function SettingsView({ onTabSelect, onLogout }: SettingsViewProps) {
 
           {/* App info */}
           <Section title="앱 정보">
-            <Row label="버전" detail="v26.0" />
+            <Row label="버전" detail={`v${__APP_VERSION__}`} />
             <Row label="빌드" detail="PWA (Cloudflare Pages)" last />
           </Section>
         </div>
