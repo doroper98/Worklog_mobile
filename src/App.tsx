@@ -37,8 +37,8 @@ type ViewState =
   | { view: 'reportDetail'; summary: ReportSummary }
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
-  | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' }
-  | { view: 'slateMeta'; slate: SlateEntry; from: 'home' | 'calendar' }
+  | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' | 'search' }
+  | { view: 'slateMeta'; slate: SlateEntry; from: 'home' | 'calendar' | 'search' }
 
 // ─── Authenticated shell ────────────────────────────────────────────────
 
@@ -86,7 +86,9 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   }, [loadDocument, viewState.view])
 
   const handleSlateTap = useCallback((slate: SlateEntry) => {
-    const from = viewState.view === 'calendar' ? 'calendar' as const : 'home' as const
+    const from = viewState.view === 'calendar' ? 'calendar' as const
+      : viewState.view === 'search' ? 'search' as const
+      : 'home' as const
     setViewState({ view: 'slate', slate, from })
   }, [viewState.view])
 
@@ -108,6 +110,8 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     } else if (viewState.view === 'slate' || viewState.view === 'slateMeta') {
       if (viewState.from === 'calendar') {
         setViewState({ view: 'calendar' })
+      } else if (viewState.from === 'search') {
+        setViewState({ view: 'search' })
       } else {
         setViewState({ view: 'home' })
       }
@@ -250,6 +254,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     return (
       <SearchView
         onFileTap={handleFileTap}
+        onSlateTap={handleSlateTap}
         onBack={handleBack}
       />
     )

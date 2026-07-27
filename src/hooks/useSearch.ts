@@ -13,6 +13,8 @@ interface UseSearchResult {
   indexBuilding: boolean
   enriching: boolean
   enrichmentProgress: EnrichmentProgress
+  slateIndexing: boolean
+  slateProgress: EnrichmentProgress
 }
 
 export function useSearch(): UseSearchResult {
@@ -24,6 +26,10 @@ export function useSearch(): UseSearchResult {
   const [enriching, setEnriching] = useState(SearchIndex.isEnriching)
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress>(
     SearchIndex.enrichmentProgress,
+  )
+  const [slateIndexing, setSlateIndexing] = useState(SearchIndex.isIndexingSlates)
+  const [slateProgress, setSlateProgress] = useState<EnrichmentProgress>(
+    SearchIndex.slateProgress,
   )
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -37,6 +43,8 @@ export function useSearch(): UseSearchResult {
           setIndexBuilding(false)
           setEnriching(SearchIndex.isEnriching)
           setEnrichmentProgress(SearchIndex.enrichmentProgress)
+          setSlateIndexing(SearchIndex.isIndexingSlates)
+          setSlateProgress(SearchIndex.slateProgress)
         })
         .catch(() => {
           setIndexBuilding(false)
@@ -45,20 +53,22 @@ export function useSearch(): UseSearchResult {
       setIndexReady(true)
       setEnriching(SearchIndex.isEnriching)
       setEnrichmentProgress(SearchIndex.enrichmentProgress)
+      setSlateIndexing(SearchIndex.isIndexingSlates)
+      setSlateProgress(SearchIndex.slateProgress)
     }
   }, [])
 
-  // Poll enrichment progress while running so results can refresh
+  // Poll background-stage progress while running so results can refresh
   useEffect(() => {
-    if (!enriching) return
+    if (!enriching && !slateIndexing) return
     const interval = setInterval(() => {
       setEnrichmentProgress(SearchIndex.enrichmentProgress)
-      if (!SearchIndex.isEnriching) {
-        setEnriching(false)
-      }
+      setSlateProgress(SearchIndex.slateProgress)
+      if (!SearchIndex.isEnriching) setEnriching(false)
+      if (!SearchIndex.isIndexingSlates) setSlateIndexing(false)
     }, 600)
     return () => clearInterval(interval)
-  }, [enriching])
+  }, [enriching, slateIndexing])
 
   // Debounced search — re-runs when enrichment makes progress
   useEffect(() => {
@@ -77,7 +87,7 @@ export function useSearch(): UseSearchResult {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query, categoryFilter, indexReady, enrichmentProgress])
+  }, [query, categoryFilter, indexReady, enrichmentProgress, slateProgress])
 
   const handleSetQuery = useCallback((q: string) => {
     setQuery(q)
@@ -97,5 +107,7 @@ export function useSearch(): UseSearchResult {
     indexBuilding,
     enriching,
     enrichmentProgress,
+    slateIndexing,
+    slateProgress,
   }
 }
