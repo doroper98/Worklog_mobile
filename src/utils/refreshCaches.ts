@@ -1,6 +1,7 @@
 import { CalendarService } from '@/services/CalendarService'
 import { MetaIndexService } from '@/services/MetaIndexService'
 import { SearchIndex } from '@/services/SearchIndex'
+import { ReportsService } from '@/services/ReportsService'
 
 /** Workbox runtime cache name for GitHub API responses (see vite.config.ts) */
 const GITHUB_API_CACHE = 'github-api'
@@ -24,4 +25,5 @@ export async function clearAllCaches(): Promise<void> {
   CalendarService.clearCache()
   MetaIndexService.clearCache()
   SearchIndex.clearIndex()
+  ReportsService.clearCache()
 }

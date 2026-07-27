@@ -11,9 +11,12 @@ import { SlateMetaView } from '@/components/SlateMetaView'
 import { SearchView } from '@/components/SearchView'
 import { QuickMemoSheet } from '@/components/QuickMemoSheet'
 import { SettingsView } from '@/components/SettingsView'
+import { ReportsView } from '@/components/ReportsView'
+import { ReportDetailView } from '@/components/ReportDetailView'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import type { SlateEntry } from '@/services/CalendarService'
+import type { ReportSummary } from '@/services/ReportsService'
 import { useWikiTree } from '@/hooks/useWikiTree'
 import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
@@ -28,6 +31,8 @@ type ViewState =
   | { view: 'calendar' }
   | { view: 'search' }
   | { view: 'settings' }
+  | { view: 'reports' }
+  | { view: 'reportDetail'; summary: ReportSummary }
   | { view: 'category'; key: string }
   | { view: 'document'; path: string; from: 'home' | 'category' | 'calendar' | 'search' }
   | { view: 'slate'; slate: SlateEntry; from: 'home' | 'calendar' }
@@ -104,6 +109,8 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       } else {
         setViewState({ view: 'home' })
       }
+    } else if (viewState.view === 'reportDetail') {
+      setViewState({ view: 'reports' })
     } else {
       setViewState({ view: 'home' })
     }
@@ -122,6 +129,14 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
 
   const handleSearchTap = useCallback(() => {
     setViewState({ view: 'search' })
+  }, [])
+
+  const handleReportsTap = useCallback(() => {
+    setViewState({ view: 'reports' })
+  }, [])
+
+  const handleReportTap = useCallback((summary: ReportSummary) => {
+    setViewState({ view: 'reportDetail', summary })
   }, [])
 
   const handleFabTap = useCallback(() => {
@@ -231,6 +246,34 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     )
   }
 
+  if (viewState.view === 'reports') {
+    return (
+      <>
+        <ReportsView
+          onBack={handleBack}
+          onReportTap={handleReportTap}
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
+    )
+  }
+
+  if (viewState.view === 'reportDetail') {
+    return (
+      <>
+        <ReportDetailView
+          summary={viewState.summary}
+          onBack={handleBack}
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
+    )
+  }
+
   if (viewState.view === 'settings') {
     return (
       <SettingsView
@@ -258,6 +301,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         onSlateTap={handleSlateTap}
         onMdTap={handleMdTap}
         onSearchTap={handleSearchTap}
+        onReportsTap={handleReportsTap}
         onTabSelect={handleTabSelect}
         onFabTap={handleFabTap}
         onRefresh={handleRefresh}

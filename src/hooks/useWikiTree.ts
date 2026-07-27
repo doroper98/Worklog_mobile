@@ -19,6 +19,22 @@ interface UseWikiTreeResult {
 
 const CATEGORY_KEYS = ['people', 'projects', 'issues', 'notes'] as const
 
+/**
+ * Module-level holder for the last recursive tree fetched by useWikiTree.
+ * Lets other services (e.g. ReportsService) reuse the full tree without
+ * spending an extra API call.
+ */
+let lastTree: TreeNode[] | null = null
+
+export const useWikiTreeCache = {
+  get(): TreeNode[] | null {
+    return lastTree
+  },
+  clear(): void {
+    lastTree = null
+  },
+}
+
 export function useWikiTree(): UseWikiTreeResult {
   const [categories, setCategories] = useState<WikiCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +46,7 @@ export function useWikiTree(): UseWikiTreeResult {
     try {
       const sha = await GitHubClient.getLatestCommitSha()
       const tree = await GitHubClient.getTree(sha, true)
+      lastTree = tree
 
       const cats: WikiCategory[] = CATEGORY_KEYS.map((key) => {
         const prefix = `wiki/${key}/`

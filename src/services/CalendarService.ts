@@ -1,4 +1,5 @@
 import { GitHubClient } from '@/services/GitHubClient'
+import { CACHE_TTL } from '@/utils/constants'
 
 /** Decode base64 content from GitHub API as UTF-8 */
 function decodeBase64Utf8(base64: string): string {
@@ -86,9 +87,6 @@ export interface MonthData {
   /** Fetch timestamp for cache staleness */
   fetchedAt: number
 }
-
-/** TTL for caches that change frequently (slates, followups, month listings) */
-const CACHE_TTL = 5 * 60 * 1000
 
 /** Byte size below which a journal JSON is treated as an empty shell */
 const EMPTY_JOURNAL_BYTES = 100
