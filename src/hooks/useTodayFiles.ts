@@ -14,6 +14,8 @@ interface UseTodayFilesResult {
   selectedDate: string
   selectDate: (dateStr: string) => void
   loading: boolean
+  /** Last load failure message (null when the load succeeded). */
+  error: string | null
   /** Re-fetch current date */
   refresh: () => Promise<void>
 }
@@ -26,9 +28,11 @@ export function useTodayFiles(): UseTodayFilesResult {
   const [daysWithFiles, setDaysWithFiles] = useState<Set<number>>(new Set())
   const [followupDates, setFollowupDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const loadDate = useCallback(async (dateStr: string) => {
     setLoading(true)
+    setError(null)
     try {
       const [y, m] = dateStr.split('-').map(Number)
       const day = parseInt(dateStr.split('-')[2], 10)
@@ -60,7 +64,10 @@ export function useTodayFiles(): UseTodayFilesResult {
         }))
       const pendingSlateFollowups = slateFollowups.filter((f) => f.status === 'todo')
       setFollowups([...dayFollowups, ...pendingSlateFollowups])
-    } catch {
+    } catch (err) {
+      // Surface the cause instead of silently rendering an empty day
+      // (CLAUDE.md §5.5 — no silent catch).
+      setError(err instanceof Error ? err.message : '데이터를 불러오지 못했습니다.')
       setFiles([])
       setSlates([])
       setFollowups([])
@@ -80,5 +87,5 @@ export function useTodayFiles(): UseTodayFilesResult {
 
   const refresh = useCallback(() => loadDate(selectedDate), [loadDate, selectedDate])
 
-  return { files, slates, followups, daysWithFiles, followupDates, selectedDate, selectDate, loading, refresh }
+  return { files, slates, followups, daysWithFiles, followupDates, selectedDate, selectDate, loading, error, refresh }
 }
