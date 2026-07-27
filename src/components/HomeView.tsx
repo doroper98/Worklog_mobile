@@ -29,6 +29,8 @@ interface HomeViewProps {
   onSelectDate: (dateStr: string) => void
   /** Offline */
   offline?: boolean
+  /** Slate/journal load failure message (shown as a banner instead of a silent empty day) */
+  dataError?: string | null
   /** Meta-index: ingested slate IDs */
   ingestedIds?: Set<string>
   /** Actions */
@@ -677,6 +679,36 @@ function FollowupList({ items }: { items: FollowupItem[] }) {
   )
 }
 
+// ─── Data error banner ───────────────────────────────────────────────────
+
+function DataErrorBanner({ message }: { message: string }) {
+  // 404/403 on the data repo almost always means a mis-scoped PAT.
+  const scopeHint = /40[34]/.test(message)
+  return (
+    <div className="px-4 pb-1.5">
+      <div
+        className="rounded-[14px] border px-3.5 py-2.5"
+        style={{
+          background: 'color-mix(in srgb, var(--color-danger) 8%, transparent)',
+          borderColor: 'color-mix(in srgb, var(--color-danger) 30%, transparent)',
+        }}
+      >
+        <div className="text-[12.5px] font-semibold" style={{ color: 'var(--color-danger)' }}>
+          데이터를 불러오지 못했습니다
+        </div>
+        <div className="mt-0.5 break-all font-mono text-[10.5px] leading-relaxed" style={{ color: 'var(--color-text-sec)' }}>
+          {message}
+        </div>
+        <div className="mt-1 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+          {scopeHint
+            ? '토큰이 데이터 저장소에 접근하지 못하는 상태일 수 있습니다. 설정에서 로그아웃 후 데이터 저장소 권한이 있는 PAT으로 다시 로그인하세요.'
+            : '당겨서 새로고침하거나 네트워크 상태를 확인하세요.'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Reports card ─────────────────────────────────────────────────────────
 
 function ReportsCard({ onTap }: { onTap?: () => void }) {
@@ -844,6 +876,7 @@ export function HomeView({
   daysWithFiles,
   onSelectDate,
   offline = false,
+  dataError = null,
   followupDates,
   ingestedIds,
   onCategoryTap,
@@ -886,6 +919,7 @@ export function HomeView({
         <AppBar />
         <SearchPill onTap={onSearchTap} count={totalDocs} />
         <OfflineBanner show={offline} />
+        {dataError && !offline && <DataErrorBanner message={dataError} />}
         <WeekStrip
           selectedDate={selectedDate}
           daysWithFiles={daysWithFiles}

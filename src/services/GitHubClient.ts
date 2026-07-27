@@ -1,8 +1,9 @@
 import type { FileContent, DirEntry, TreeNode, PutResult, RateLimit, InboxPath } from '@/types'
 import { AuthManager } from '@/services/AuthManager'
+import { DATA_REPO } from '@/utils/constants'
 
 const API = 'https://api.github.com'
-const REPO = 'doroper98/worklog_log'
+const REPO = DATA_REPO
 
 function headers(): HeadersInit {
   const pat = AuthManager.getPat()

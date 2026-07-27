@@ -47,7 +47,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const [memoOpen, setMemoOpen] = useState(false)
   const { categories, loading: treeLoading, refresh: refreshWiki } = useWikiTree()
   const { document, loading: docLoading, error: docError, loadDocument, clearDocument } = useDocument()
-  const { slates: allSlates, followups: todayFollowups, daysWithFiles, followupDates, selectedDate, selectDate, loading: todayLoading, refresh: refreshToday } = useTodayFiles()
+  const { slates: allSlates, followups: todayFollowups, daysWithFiles, followupDates, selectedDate, selectDate, loading: todayLoading, error: todayError, refresh: refreshToday } = useTodayFiles()
   // Separate followup-type slates from regular slates (followups shown in Follow up section)
   const todaySlates = allSlates.filter((s) => s.type !== 'followup')
   const online = useOnline()
@@ -317,6 +317,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}
         offline={!online}
+        dataError={todayError}
         followupDates={followupDates}
         ingestedIds={ingestedIds}
         onCategoryTap={handleCategoryTap}
