@@ -240,7 +240,7 @@ export function SettingsView({ onTabSelect, onLogout }: SettingsViewProps) {
 
           {/* App info */}
           <Section title="앱 정보">
-            <Row label="버전" detail="v26.0" />
+            <Row label="버전" detail={`v${__APP_VERSION__}`} />
             <Row label="빌드" detail="PWA (Cloudflare Pages)" last />
           </Section>
         </div>
