@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 
 import type { ThemeSetting, EffectiveTheme } from '@/types'
+import { isThemeKey } from '@/styles/palettes'
 
 const STORAGE_KEY = 'theme'
 
@@ -11,7 +12,22 @@ function getSystemTheme(): EffectiveTheme {
 function readStoredTheme(): ThemeSetting {
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  if (stored && isThemeKey(stored)) return stored
   return 'system'
+}
+
+/**
+ * Sync the <meta name="theme-color"> to the active theme's opaque background so
+ * the iOS standalone status bar matches the app (§4.6-2). Reads the resolved
+ * --bg-opaque token, which every theme defines as a solid color.
+ */
+function syncThemeColorMeta(): void {
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (!meta) return
+  const bg = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg-opaque')
+    .trim()
+  if (bg) meta.setAttribute('content', bg)
 }
 
 export function useTheme() {
@@ -23,7 +39,7 @@ export function useTheme() {
     [setting, systemTheme],
   )
 
-  // Listen to OS theme changes
+  // Listen to OS theme changes (only affects the 'system' setting)
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e: MediaQueryListEvent) => {
@@ -33,9 +49,11 @@ export function useTheme() {
     return () => mql.removeEventListener('change', handler)
   }, [])
 
-  // Apply data-theme attribute to <html>
+  // Apply data-theme attribute to <html>, then sync the status-bar color.
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', effectiveTheme)
+    // Defer one frame so the new theme's variables are committed before we read them.
+    requestAnimationFrame(syncThemeColorMeta)
   }, [effectiveTheme])
 
   const setTheme = useCallback((next: ThemeSetting) => {

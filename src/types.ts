@@ -1,8 +1,15 @@
-/** Allowed theme settings */
-export type ThemeSetting = 'light' | 'dark' | 'system'
+import type { ThemeKey } from '@/styles/palettes'
 
-/** Resolved effective theme (never 'system') */
-export type EffectiveTheme = 'light' | 'dark'
+/**
+ * Allowed theme settings. 'system' follows the OS; 'light'/'dark' pin the base
+ * themes; a ThemeKey pins one of the ported desktop themes (§4.6-4). Kept as a
+ * flat union (not { mode, theme }) for backward-compat with the existing
+ * localStorage['theme'] single-string value.
+ */
+export type ThemeSetting = 'light' | 'dark' | 'system' | ThemeKey
+
+/** Resolved effective theme applied to <html data-theme> (never 'system') */
+export type EffectiveTheme = 'light' | 'dark' | ThemeKey
 
 /** Glass performance tier set by deviceCapabilities */
 export type GlassPerf = 'full' | 'low' | 'none'
