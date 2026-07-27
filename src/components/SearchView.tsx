@@ -3,17 +3,22 @@ import { useRef, useEffect } from 'react'
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { useSearch } from '@/hooks/useSearch'
+import { SearchIndex } from '@/services/SearchIndex'
 import type { SearchResult } from '@/services/SearchIndex'
+import type { SlateEntry } from '@/services/CalendarService'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
 interface SearchViewProps {
   onFileTap: (path: string) => void
+  /** Open a slate search result (recent-journal slates) */
+  onSlateTap?: (slate: SlateEntry) => void
   onBack: () => void
 }
 
 const CATEGORY_FILTERS = [
   { key: undefined as string | undefined, label: '전체' },
+  { key: 'slate', label: '슬레이트' },
   { key: 'people', label: 'People' },
   { key: 'projects', label: 'Projects' },
   { key: 'issues', label: 'Issues' },
@@ -26,6 +31,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   issues: '--color-meet',
   notes: '--color-memo',
   markdown: '--color-daily',
+  slate: '--color-daily',
 }
 
 // ─── Highlight helper ───────────────────────────────────────────────────
@@ -87,7 +93,9 @@ function ResultItem({
         className="w-14 flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider"
         style={{ color: 'var(--color-text-muted)' }}
       >
-        {result.category}
+        {result.category === 'slate' && result.date
+          ? result.date.slice(5) // MM-DD
+          : result.category}
       </span>
       <div
         className="min-w-0 flex-1 truncate text-[13.5px] font-medium"
@@ -102,14 +110,24 @@ function ResultItem({
 
 // ─── SearchView ─────────────────────────────────────────────────────────
 
-export function SearchView({ onFileTap, onBack }: SearchViewProps) {
+export function SearchView({ onFileTap, onSlateTap, onBack }: SearchViewProps) {
   const {
     query, setQuery,
     results,
     categoryFilter, setCategoryFilter,
     indexReady, indexBuilding,
     enriching, enrichmentProgress,
+    slateIndexing, slateProgress,
   } = useSearch()
+
+  const handleResultTap = (r: SearchResult) => {
+    if (r.category === 'slate') {
+      const entry = SearchIndex.getSlateEntry(r.path)
+      if (entry && onSlateTap) onSlateTap(entry)
+      return
+    }
+    onFileTap(r.path)
+  }
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -222,6 +240,31 @@ export function SearchView({ onFileTap, onBack }: SearchViewProps) {
           </div>
         )}
 
+        {indexReady && slateIndexing && slateProgress.total > 0 && (
+          <div
+            className="flex items-center justify-center gap-2 px-5 py-1 font-mono text-[10px]"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <span>슬레이트 인덱싱 (최근 30일)</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {slateProgress.done} / {slateProgress.total}
+            </span>
+            <div
+              className="h-0.5 w-16 overflow-hidden rounded"
+              style={{ background: 'var(--color-surface-alt)' }}
+            >
+              <div
+                className="h-full"
+                style={{
+                  width: `${(slateProgress.done / slateProgress.total) * 100}%`,
+                  background: 'var(--color-daily)',
+                  transition: 'width 0.4s ease-out',
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {indexReady && !query && (
           <div className="px-5 py-8 text-center">
             <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -257,7 +300,7 @@ export function SearchView({ onFileTap, onBack }: SearchViewProps) {
                 <ResultItem
                   key={r.path}
                   result={r}
-                  onTap={() => onFileTap(r.path)}
+                  onTap={() => handleResultTap(r)}
                 />
               ))}
             </div>
