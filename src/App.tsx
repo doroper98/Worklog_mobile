@@ -13,6 +13,7 @@ import { QuickMemoSheet } from '@/components/QuickMemoSheet'
 import { SettingsView } from '@/components/SettingsView'
 import { ReportsView } from '@/components/ReportsView'
 import { ReportDetailView } from '@/components/ReportDetailView'
+import { InboxSentView } from '@/components/InboxSentView'
 import { AuthManager } from '@/services/AuthManager'
 import type { GitHubUser } from '@/services/AuthManager'
 import type { SlateEntry } from '@/services/CalendarService'
@@ -28,9 +29,10 @@ import { clearAllCaches } from '@/utils/refreshCaches'
 
 type ViewState =
   | { view: 'home' }
-  | { view: 'calendar' }
+  | { view: 'calendar'; initialDate?: string }
   | { view: 'search' }
   | { view: 'settings' }
+  | { view: 'inbox' }
   | { view: 'reports' }
   | { view: 'reportDetail'; summary: ReportSummary }
   | { view: 'category'; key: string }
@@ -122,10 +124,16 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       setViewState({ view: 'calendar' })
     } else if (tab === 'settings') {
       setViewState({ view: 'settings' })
+    } else if (tab === 'inbox') {
+      setViewState({ view: 'inbox' })
     } else {
       setViewState({ view: 'home' })
     }
   }, [clearDocument])
+
+  const handleOpenDate = useCallback((dateStr: string) => {
+    setViewState({ view: 'calendar', initialDate: dateStr })
+  }, [])
 
   const handleSearchTap = useCallback(() => {
     setViewState({ view: 'search' })
@@ -227,6 +235,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
     return (
       <>
         <CalendarView
+          initialDate={viewState.initialDate}
           onTabSelect={handleTabSelect}
           onSlateTap={handleSlateTap}
           onFabTap={handleFabTap}
@@ -280,6 +289,19 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         onTabSelect={handleTabSelect}
         onLogout={onLogout}
       />
+    )
+  }
+
+  if (viewState.view === 'inbox') {
+    return (
+      <>
+        <InboxSentView
+          onTabSelect={handleTabSelect}
+          onFabTap={handleFabTap}
+          onOpenDate={handleOpenDate}
+        />
+        <QuickMemoSheet open={memoOpen} onClose={handleMemoClose} />
+      </>
     )
   }
 
