@@ -139,3 +139,39 @@
   color: var(--color-text);
   font-weight: 700;
 }
+
+/* ─── Mermaid diagrams ─────────────────────────────────────────────────
+ * Mermaid sizes each node by measuring its label in a detached element,
+ * then the finished SVG is injected inside .ww-markdown. The markdown
+ * typography above (line-height 1.75, paragraph margins, word-break:
+ * keep-all) therefore applies only AFTER measurement, so the text renders
+ * taller and wider than the box reserved for it and gets clipped —
+ * Korean labels especially, since keep-all refuses to break them.
+ * Reset those inherited rules back to what mermaid measured.
+ */
+.ww-mermaid foreignObject {
+  /* Labels that still exceed their box stay readable rather than cut off */
+  overflow: visible;
+}
+
+.ww-mermaid foreignObject div,
+.ww-mermaid foreignObject p,
+.ww-mermaid foreignObject span,
+.ww-mermaid .nodeLabel,
+.ww-mermaid .edgeLabel,
+.ww-mermaid .cluster-label,
+.ww-mermaid .label {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  /* keep-all prevents Korean labels from wrapping; allow normal breaking */
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* Edge labels sit on top of lines — keep their chip readable */
+.ww-mermaid .edgeLabel {
+  background: var(--color-surface);
+}

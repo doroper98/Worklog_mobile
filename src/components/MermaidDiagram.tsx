@@ -22,6 +22,17 @@ interface Props {
 }
 
 /**
+ * Mermaid measures html labels in a detached element, then the SVG is injected
+ * inside .ww-markdown. Any font difference between those two contexts makes the
+ * rendered text wider than the box mermaid sized for it, which clips the label.
+ * Pinning the exact family and size (matched by the CSS in markdown.css) keeps
+ * measurement and render identical.
+ */
+const LABEL_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif'
+const LABEL_FONT_SIZE = 14
+
+/**
  * Render a Mermaid flowchart. The mermaid library (~150 KB gzip) is
  * loaded on first use via dynamic import so users who never open a
  * diagram pay no bundle cost.
@@ -43,8 +54,16 @@ export function MermaidDiagram({ source }: Props) {
           startOnLoad: false,
           theme: effectiveTheme === 'dark' ? 'dark' : 'default',
           securityLevel: 'strict',
-          flowchart: { htmlLabels: true, curve: 'basis' },
-          fontFamily: 'inherit',
+          flowchart: {
+            htmlLabels: true,
+            curve: 'basis',
+            // Wrap long labels into several lines instead of one wide node —
+            // narrow phone screens shrink a wide diagram past readability.
+            wrappingWidth: 180,
+            padding: 10,
+          },
+          fontFamily: LABEL_FONT,
+          fontSize: LABEL_FONT_SIZE,
         })
         return mermaid.render(renderId, source)
       })
