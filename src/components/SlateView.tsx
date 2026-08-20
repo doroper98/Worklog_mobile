@@ -6,7 +6,7 @@ import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
+import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
 import { safeUrlTransform } from '@/utils/safeUrlTransform'
 import type { SlateEntry } from '@/services/CalendarService'
@@ -115,7 +115,7 @@ export function SlateView({ slate, onBack, onTabSelect, onFabTap }: SlateViewPro
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
               urlTransform={safeUrlTransform}
-              components={{ code: MarkdownCodeBlock, img: GitHubImage }}
+              components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
             >
               {markdownContent}
             </ReactMarkdown>

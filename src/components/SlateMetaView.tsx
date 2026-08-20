@@ -6,7 +6,7 @@ import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
+import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
 import { MetaIndexService } from '@/services/MetaIndexService'
 import type { MetaIndexEntry } from '@/services/MetaIndexService'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
@@ -200,7 +200,7 @@ export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 urlTransform={safeUrlTransform}
-                components={{ code: MarkdownCodeBlock, img: GitHubImage }}
+                components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
               >
                 {markdownContent}
               </ReactMarkdown>
