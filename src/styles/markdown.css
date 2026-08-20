@@ -163,6 +163,11 @@
 .ww-mermaid .label {
   margin: 0;
   padding: 0;
+  /* Must match MermaidDiagram's LABEL_FONT/LABEL_FONT_SIZE: mermaid measures
+     each label in that font, so any substitution here (a monospace ancestor,
+     for instance) renders wider than the box it reserved and clips the text. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.35;
   /* keep-all prevents Korean labels from wrapping; allow normal breaking */

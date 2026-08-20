@@ -42,3 +42,26 @@ export function MarkdownCodeBlock({
     </code>
   )
 }
+
+/** True when this <pre> wraps a ```mermaid fence. */
+function isMermaidBlock(children: ReactNode): boolean {
+  const child = Array.isArray(children) ? children[0] : children
+  if (!child || typeof child !== 'object' || !('props' in child)) return false
+  const className = (child as { props?: { className?: string } }).props?.className
+  return typeof className === 'string' && /language-mermaid\b/.test(className)
+}
+
+/**
+ * Replacement for the default <pre> element.
+ *
+ * A ```mermaid fence renders as a diagram, not as code, so the <pre> wrapper is
+ * dropped for it. Left in place, the browser's built-in `font-family: monospace`
+ * on <pre> cascades into the SVG's html labels — mermaid sizes each node by
+ * measuring the label in a proportional font, so the monospace text renders far
+ * wider than the box reserved for it and gets clipped. Dropping the wrapper also
+ * removes its duplicate border and padding around the diagram's own container.
+ */
+export function MarkdownPre({ children, ...rest }: ComponentPropsWithoutRef<'pre'>) {
+  if (isMermaidBlock(children)) return <>{children}</>
+  return <pre {...rest}>{children}</pre>
+}

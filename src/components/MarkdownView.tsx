@@ -7,7 +7,7 @@ import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
 import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock } from '@/components/MarkdownCodeBlock'
+import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
 import { safeUrlTransform } from '@/utils/safeUrlTransform'
 
 interface MarkdownViewProps {
@@ -109,7 +109,7 @@ export function MarkdownView({ title, path, content, loading, error, onBack, onT
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
                 urlTransform={safeUrlTransform}
-                components={{ code: MarkdownCodeBlock, img: GitHubImage }}
+                components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
               >
                 {content}
               </ReactMarkdown>
