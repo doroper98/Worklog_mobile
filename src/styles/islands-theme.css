@@ -62,6 +62,21 @@
 }
 
 /*
+ * …and give that connector room to read as a turn rather than a line hugging
+ * the border. The stage's own padding is the only gutter available: the
+ * renderer sizes the drawing from stage.clientWidth, which includes padding, so
+ * widening the left side costs content-box width rather than redrawing wider.
+ * Measured budget is padding-left + padding-right <= 20px before the drawing
+ * outgrows the content box and the stage starts scrolling; 14/4 spends 18 of
+ * it, putting the turn 8px clear of the edge with 2px still in hand so
+ * sub-pixel widths can't introduce a scrollbar. The right side needs less — the
+ * rail already reserves a 24px margin there.
+ */
+.md-content .ww-flow-stage {
+  padding: 10px 4px 10px 14px;
+}
+
+/*
  * Touch-sized [섬 | 표] switch.
  *
  * islands.css sizes it for a mouse — 11px type in a 1px-tall padding box, so
