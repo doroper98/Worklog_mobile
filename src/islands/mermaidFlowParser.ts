@@ -21,6 +21,8 @@ export interface FlowNode {
   label: string;
   subgraph?: string;
   order: number;
+  /** `{…}` 마름모 = 결정 노드 */
+  shape?: 'decision';
 }
 
 export interface FlowEdge {
@@ -60,14 +62,14 @@ function cleanLabel(raw: string): string {
 }
 
 /** `A["label"]` 류에서 id 와 label 을 분리. label 이 없으면 undefined. */
-function parseNodeToken(token: string): { id: string; label?: string } | null {
+function parseNodeToken(token: string): { id: string; label?: string; decision?: boolean } | null {
   const m = /^([A-Za-z0-9_][\w-]*)\s*([\s\S]*)$/.exec(token.trim());
   if (!m) return null;
   const id = m[1];
   const rest = m[2].trim();
   if (!rest) return { id };
   const inner = rest.replace(/^[[({>/\\]+/, '').replace(/[\])}/\\]+$/, '');
-  return { id, label: cleanLabel(inner) };
+  return { id, label: cleanLabel(inner), decision: rest.startsWith('{') };
 }
 
 /** 라벨을 몸통 안에 쓰는 형태(`-- t -->`, `-.t.->`, `== t ==>`)를 `-->|t|` 로 정규화 */
@@ -89,10 +91,12 @@ export function parseFlowchart(src: string): FlowGraph | null {
   const stack: FlowSubgraph[] = [];
   let order = 0;
 
-  const ensureNode = (id: string, label?: string): FlowNode => {
+  const ensureNode = (id: string, label?: string, decision?: boolean): FlowNode => {
     let n = graph.nodes.get(id);
+    if (decision && n) n.shape = 'decision';
     if (!n) {
       n = { id, label: label ?? id, order: order++ };
+      if (decision) n.shape = 'decision';
       const sg = stack[0];
       if (sg) { n.subgraph = sg.id; sg.nodes.push(id); }
       graph.nodes.set(id, n);
@@ -131,7 +135,7 @@ export function parseFlowchart(src: string): FlowGraph | null {
       for (const piece of tok.split(/\s+&\s+/)) {
         const nt = parseNodeToken(piece);
         if (!nt) continue;
-        ensureNode(nt.id, nt.label);
+        ensureNode(nt.id, nt.label, nt.decision);
         ids.push(nt.id);
       }
       groups.push(ids);

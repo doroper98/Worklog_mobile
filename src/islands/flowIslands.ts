@@ -16,7 +16,7 @@ import type { FlowGraph, FlowEdge } from './mermaidFlowParser';
 import { resolveIslandTokens, measureText, wrapText, svgEl, svgText } from './islandTokens';
 import type { IslandTokens } from './islandTokens';
 
-export type FlowIslandKind = 'rail' | 'cause' | 'map';
+export type FlowIslandKind = 'rail' | 'branch' | 'cause' | 'map';
 
 type StrokeKind = 'flow' | 'soft' | 'axis' | 'strong' | 'no' | 'back' | 'ref';
 
@@ -132,12 +132,13 @@ export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
     if (ok && covered.size === n) return 'cause';
   }
   // rail: 실선 기준 긴 경로 위에 대부분의 노드가 있고, 나머지는 경로 노드의 자식(분기)
-  if (n > 14) return null;
+  if (n > 24) return null;
   const ds = degrees(g, false);
   const path = longestPath(g, ds);
-  if (path.length < Math.max(3, Math.ceil(n * 0.6))) return null;
+  if (path.length < Math.max(3, Math.ceil(n * 0.5))) return null;
   const onPath = new Set(path);
-  if (n - path.length > 4) return null;
+  let plainRail = n <= 14 && path.length >= Math.ceil(n * 0.6) && n - path.length <= 4;
+  let hasChain = false;
   for (const id of g.nodes.keys()) {
     if (onPath.has(id)) continue;
     const parents = (ds.inn.get(id) || []).filter(e => onPath.has(e.from));
@@ -145,9 +146,16 @@ export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
     // 합류 입력: 바깥 노드가 경로 노드 하나로만 들어간다 (예: MDS·MDM 분류 → 통합 분류)
     const outs = ds.out.get(id) || [];
     const isJoin = (ds.indeg.get(id) || 0) === 0 && outs.length === 1 && onPath.has(outs[0].to);
-    if (!isLeaf && !isJoin) return null;
+    if (isLeaf || isJoin) continue;
+    // 가지: 부모 하나(경로 또는 앞 가지 노드), 자식 0~1개. 가지 끝은 잎이거나 경로로 합류.
+    if ((ds.indeg.get(id) || 0) !== 1 || outs.length > 1) return null;
+    plainRail = false; hasChain = true;
   }
-  return 'rail';
+  // 경로 안에서 뒤로 가는 실선(되돌림)이나 결정 마름모가 있으면 분기 궤도가 맞다
+  const hasDecision = Array.from(g.nodes.values()).some(x => x.shape === 'decision');
+  const hasLoop = g.edges.some(e => !e.dashed && onPath.has(e.from) && onPath.has(e.to) && path.indexOf(e.to) < path.indexOf(e.from));
+  if (plainRail && !hasChain && !hasDecision && !hasLoop) return 'rail';
+  return 'branch';
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -256,6 +264,157 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
   });
   const SW = Math.max(usedW, W);
   return svgEl('svg', { width: SW, height: H, viewBox: `0 0 ${SW} ${H}`, role: 'img', xmlns: 'http://www.w3.org/2000/svg' }, defs(t, uid) + s);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// branch (세로 본선 + 오른쪽 가지 + 합류/되돌림)
+// ────────────────────────────────────────────────────────────────────────────
+
+interface Chain { tag: string; nodes: string[]; rejoin: number | null; dashed: boolean }
+interface TrunkStep { id: string; tag?: string; chains: Chain[]; loops: Array<{ to: number; label: string }>; joins: Array<{ label: string; tag: string }>; leaves: BranchItem[] }
+
+function buildBranch(g: FlowGraph): TrunkStep[] {
+  const ds = degrees(g, false), dAll = degrees(g, true);
+  const path = longestPath(g, ds);
+  const idx = new Map<string, number>(); path.forEach((id, i) => idx.set(id, i));
+  const used = new Set<string>(path);
+  const steps: TrunkStep[] = path.map(id => ({ id, chains: [], loops: [], joins: [], leaves: [] }));
+  path.forEach((id, i) => {
+    const st = steps[i];
+    for (const e of dAll.out.get(id) || []) {
+      const ti = idx.get(e.to);
+      if (ti !== undefined) {
+        if (ti === i + 1 && !e.dashed) { if (e.label) st.tag = e.label; continue; }
+        if (ti <= i) { st.loops.push({ to: ti, label: e.label || '' }); continue; }
+        continue; // 앞으로 건너뛰는 경로 내 엣지는 생략(본선 화살표가 대신한다)
+      }
+      // 가지 따라가기
+      const nodes: string[] = []; let cur = e.to; let rejoin: number | null = null; let guard = 0;
+      while (cur && !idx.has(cur) && guard++ < 32) {
+        if (used.has(cur)) break;
+        nodes.push(cur); used.add(cur);
+        const nx = (ds.out.get(cur) || [])[0];
+        if (!nx) break;
+        if (idx.has(nx.to)) { rejoin = idx.get(nx.to)!; break; }
+        cur = nx.to;
+      }
+      if (nodes.length === 0) continue;
+      const single = nodes.length === 1 && rejoin === null && (dAll.outdeg.get(nodes[0]) || 0) === 0;
+      if (single && !e.dashed && !g.nodes.get(nodes[0])!.shape) {
+        st.leaves.push({ tag: e.label || '', label: g.nodes.get(nodes[0])!.label, kind: 'alt' });
+      } else st.chains.push({ tag: e.label || '', nodes, rejoin, dashed: e.dashed });
+    }
+    for (const e of dAll.inn.get(id) || []) {
+      if (idx.has(e.from) || used.has(e.from)) continue;
+      if ((dAll.indeg.get(e.from) || 0) === 0 && (dAll.outdeg.get(e.from) || 0) === 1) { st.joins.push({ label: g.nodes.get(e.from)!.label, tag: e.label || '입력' }); used.add(e.from); }
+    }
+  });
+  return steps;
+}
+
+function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
+  const uid = nextUid();
+  const steps = buildBranch(g);
+  const SZ = 12.5, pad = 12, W = Math.max(300, width);
+  const hasLoop = steps.some(s => s.loops.length);
+  const mL = hasLoop ? 40 : 12, mT = 12, gapY = 30, gapX = 30, rowGap = 12;
+  const labelOf = (id: string) => g.nodes.get(id)!.label;
+  // 본선 노드 폭: 라벨 최대 폭에 맞추되 220 을 넘기지 않는다
+  let tw = 0; for (const s of steps) tw = Math.max(tw, measureText(labelOf(s.id), SZ, 600, t.font));
+  const nodeW = Math.min(220, Math.max(150, Math.ceil(tw) + 2 * pad));
+  const wrapN = (id: string, w: number) => wrapText(labelOf(id), w - 2 * pad, SZ, id === steps[0].id ? 600 : 600, t.font);
+  const chainNodeW = (id: string) => Math.min(200, Math.max(110, Math.ceil(measureText(labelOf(id), SZ, 500, t.font)) + 2 * pad));
+  const nodeH = (lines: number) => 18 + lines * 16;
+  // 세로 배치
+  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; decision: boolean };
+  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = mT; let maxX = mL + nodeW;
+  const chainRows: Array<{ step: number; chain: Chain; y: number; placed: Placed[] }> = [];
+  steps.forEach((st) => {
+    const lines = wrapN(st.id, nodeW); const h = nodeH(lines.length);
+    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, decision: g.nodes.get(st.id)!.shape === 'decision' };
+    trunk.push(p);
+    // 가지 행: 첫 가지는 노드와 같은 높이, 다음 가지는 아래 행
+    let rowY = y;
+    st.chains.forEach((ch, k) => {
+      if (k > 0) rowY += rowGap + 40;
+      const tagW = ch.tag ? measureText(ch.tag, 10.5, 600, t.font) + 12 + 8 : 0;
+      let x = mL + nodeW + gapX + (k > 0 ? 18 : 0) + tagW; // 태그 자리
+      const placed: Placed[] = [];
+      for (const id of ch.nodes) {
+        const w = chainNodeW(id); const ls = wrapText(labelOf(id), w - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
+        placed.push({ id, x, y: rowY + (h - hh) / 2, w, h: hh, lines: ls, decision: g.nodes.get(id)!.shape === 'decision' });
+        x += w + gapX;
+      }
+      maxX = Math.max(maxX, x - gapX + 20);
+      chainRows.push({ step: trunk.length - 1, chain: ch, y: rowY, placed });
+      extras.push(...placed);
+    });
+    // 잎·입력 항목(노드 아래 작은 줄)
+    const itemRows = st.leaves.length + st.joins.length;
+    const bottom = Math.max(y + h, rowY + h) + (itemRows ? 8 + itemRows * 20 : 0);
+    y = bottom + gapY;
+  });
+  const H = y - gapY + 12;
+  // 본선 화살표 + 태그
+  for (let i = 0; i < trunk.length - 1; i++) {
+    const a = trunk[i], b = trunk[i + 1], xm = a.x + a.w / 2;
+    svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, 'flow', t, uid);
+    if (steps[i].tag) svg += svgText(xm + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t);
+  }
+  // 가지 연결선
+  for (const row of chainRows) {
+    const from = trunk[row.step]; const first = row.placed[0]; const last = row.placed[row.placed.length - 1];
+    const kind: StrokeKind = row.chain.dashed ? 'ref' : 'flow';
+    const sameRow = Math.abs(row.y - from.y) < 1;
+    const ym = first.y + first.h / 2;
+    if (sameRow) svg += pathEl(`M${from.x + from.w + 1} ${ym} L${first.x - 3} ${ym}`, kind, t, uid);
+    else { const bx = from.x + from.w + 14; svg += pathEl(`M${from.x + from.w + 1} ${from.y + from.h / 2} H${bx} V${ym} L${first.x - 3} ${ym}`, kind, t, uid); }
+    if (row.chain.tag) {
+      const lw = measureText(row.chain.tag, 10.5, 600, t.font) + 12; const tx = first.x - 8 - lw, ty = ym - 9;
+      svg += svgEl('rect', { x: tx, y: ty, width: lw, height: 18, rx: 4, fill: t.surface, stroke: t.green, 'stroke-width': 1 });
+      svg += svgText(tx + 6, ym + 4, row.chain.tag, { size: 10.5, weight: 600, fill: t.green }, t);
+    }
+    for (let k = 0; k < row.placed.length - 1; k++) { const p = row.placed[k], q = row.placed[k + 1]; const yy = p.y + p.h / 2; svg += pathEl(`M${p.x + p.w + 1} ${yy} L${q.x - 3} ${yy}`, 'flow', t, uid); }
+    if (row.chain.rejoin !== null) {
+      const rj = trunk[row.chain.rejoin]; const rx = last.x + last.w + 14; const ry = rj.y + rj.h / 2;
+      const lastY = last.y + last.h / 2;
+      if (rj.y > last.y) svg += pathEl(`M${last.x + last.w + 1} ${lastY} H${rx} V${ry} L${rj.x + rj.w + 3} ${ry}`, kind, t, uid);
+      else svg += pathEl(`M${last.x + last.w + 1} ${lastY} H${rx} V${ry} L${rj.x + rj.w + 3} ${ry}`, kind, t, uid);
+      maxX = Math.max(maxX, rx + 8);
+    }
+  }
+  // 되돌림(왼쪽 고리)
+  steps.forEach((st, i) => {
+    st.loops.forEach((lp, k) => {
+      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 14 - k * 6;
+      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${b.y + b.h / 2} L${b.x - 3} ${b.y + b.h / 2}`, 'back', t, uid);
+      if (lp.label) svg += svgText(lx - 3, (a.y + b.y + b.h) / 2, lp.label, { size: 10, fill: t.text2, anchor: 'end' }, t);
+    });
+  });
+  // 노드
+  const drawNode = (p: Placed, weight: number) => {
+    if (p.decision) {
+      svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: p.h / 2, fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
+    } else svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
+    const top = p.y + (p.h - p.lines.length * 16) / 2;
+    p.lines.forEach((ln, k) => { svg += svgText(p.x + pad, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text }, t); });
+  };
+  trunk.forEach(p => drawNode(p, 600)); extras.forEach(p => drawNode(p, 500));
+  // 잎·입력 항목
+  steps.forEach((st, i) => {
+    const p = trunk[i]; let yy = Math.max(p.y + p.h, ...st.chains.map((_c, k) => p.y + p.h + k * (rowGap + 40))) + 16;
+    const items = [...st.joins.map(j => ({ tag: j.tag, label: `${j.label} →`, col: t.blue })), ...st.leaves.map(l => ({ tag: l.tag, label: l.label, col: t.text2 }))];
+    for (const it of items) {
+      const bx = p.x + 18;
+      svg += svgEl('path', { d: `M${bx} ${p.y + p.h} V${yy} H${bx + 12}`, fill: 'none', stroke: t.border, 'stroke-width': 1.2 });
+      let x = bx + 14;
+      if (it.tag) { const lw = measureText(it.tag, 10.5, 600, t.font) + 12; svg += svgEl('rect', { x, y: yy - 9, width: lw, height: 18, rx: 4, fill: t.surface, stroke: it.col, 'stroke-width': 1 }); svg += svgText(x + 6, yy + 4, it.tag, { size: 10.5, weight: 600, fill: it.col }, t); x += lw + 8; }
+      svg += svgText(x, yy + 4, it.label, { size: 12, fill: t.text2 }, t);
+      yy += 20;
+    }
+  });
+  const SW = Math.max(maxX + 12, Math.min(W, maxX + 12));
+  return svgEl('svg', { width: SW, height: H, viewBox: `0 0 ${SW} ${H}`, role: 'img', xmlns: 'http://www.w3.org/2000/svg' }, defs(t, uid) + svg);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -407,9 +566,10 @@ function drawMap(g: FlowGraph, t: IslandTokens): string {
 export function renderFlowIsland(g: FlowGraph, kind: FlowIslandKind, width: number): string {
   const t = resolveIslandTokens();
   if (kind === 'rail') return drawRail(buildRail(g), width, t);
+  if (kind === 'branch') return drawBranch(g, width, t);
   if (kind === 'cause') return drawCause(g, width, t);
   return drawMap(g, t);
 }
 
-export const FLOW_KIND_LABEL: Record<FlowIslandKind, string> = { rail: '단계 궤도', cause: '원인·결과', map: '연계 지도' };
+export const FLOW_KIND_LABEL: Record<FlowIslandKind, string> = { rail: '단계 궤도', branch: '분기 궤도', cause: '원인·결과', map: '연계 지도' };
 
