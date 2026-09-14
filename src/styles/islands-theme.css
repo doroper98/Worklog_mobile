@@ -1,0 +1,42 @@
+/*
+ * Theme adjustments for the copied island styles.
+ *
+ * islands.css is a verbatim copy of the desktop file and is never edited, so
+ * anything the mobile themes need differently is layered here instead.
+ *
+ * --yk-primary serves both roles in islands.css: seven `color:` rules (tags,
+ * chips, figures, group headings) and six fill/border rules (dots, rating pips,
+ * segments). A theme like NOTURNO needs a lighter accent for the small text
+ * while fills and thick strokes keep the base accent, so the text rules — and
+ * only those — are re-pointed at --color-accent-text, which defaults to the
+ * accent everywhere else and therefore changes nothing for the other themes.
+ *
+ * Must load after islands.css: several of these selectors tie on specificity.
+ */
+
+.md-content .ww-tag,
+.md-content .ww-chip-person,
+.md-content .ww-dec-n,
+.md-content .ww-rating-avg.ww-top,
+.md-content .ww-ba-val.ww-b,
+.md-content table.ww-matrix td.ww-best,
+.md-content .ww-tree-g0 > b {
+  color: var(--color-accent-text);
+}
+
+/*
+ * islandTokens resolves each theme color by assigning `color: var(--yk-…)` to a
+ * single hidden probe span parked off-canvas and reading its computed color.
+ *
+ * themes.css puts a 0.15s color transition on `html *`, which the probe inherits,
+ * so every read after the first returns an in-flight interpolated value — the
+ * SVG islands then painted every token with the first token's color (node boxes
+ * filled with the text color, labels invisible against them). Excluding the
+ * probe from transitions makes each read land on the final value.
+ *
+ * Targets the probe by its off-canvas offset rather than a class, because the
+ * copied module is kept verbatim and sets only inline styles.
+ */
+[style*="-9999px"] {
+  transition: none !important;
+}

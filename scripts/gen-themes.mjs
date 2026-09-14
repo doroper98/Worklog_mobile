@@ -84,6 +84,9 @@ function block(p) {
   }
 
   const accentOn = onColor(p.primary)
+  // Per-palette derivation ratios; a palette may override them to match the
+  // desktop block it was copied from.
+  const d = { border: 10, borderStrong: 18, hairline: 6, ...(p.derive ?? {}) }
   const scrim = p.mode === 'dark'
     ? 'rgba(0, 0, 0, 0.55)'
     : 'color-mix(in srgb, var(--color-text) 38%, transparent)'
@@ -98,9 +101,9 @@ function block(p) {
     `  --color-surface-warm: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent));`,
     ``,
     `  /* Borders */`,
-    `  --color-border: color-mix(in srgb, var(--color-text) 10%, transparent);`,
-    `  --color-border-strong: color-mix(in srgb, var(--color-text) 18%, transparent);`,
-    `  --color-hairline: color-mix(in srgb, var(--color-text) 6%, transparent);`,
+    `  --color-border: color-mix(in srgb, var(--color-text) ${d.border}%, transparent);`,
+    `  --color-border-strong: color-mix(in srgb, var(--color-text) ${d.borderStrong}%, transparent);`,
+    `  --color-hairline: color-mix(in srgb, var(--color-text) ${d.hairline}%, transparent);`,
     ``,
     `  /* Text */`,
     `  --color-text: ${text};`,
@@ -114,6 +117,10 @@ function block(p) {
     `  --color-accent-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);`,
     `  --color-accent-faint: color-mix(in srgb, var(--color-accent) 22%, transparent);`,
     `  --color-accent-text-on: ${accentOn};`,
+    ...(p.accentText
+      ? [`  /* Lighter accent for small text; the base stays for fills/strokes */`,
+         `  --color-accent-text: ${p.accentText};`]
+      : []),
     ``,
     `  /* Category (inherited from dark base) */`,
     `  --color-meet: ${CATEGORY.meet};`,

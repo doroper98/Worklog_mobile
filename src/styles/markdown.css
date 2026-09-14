@@ -64,7 +64,7 @@
 }
 
 .ww-markdown a {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   background: var(--color-accent-soft);
   padding: 1px 5px;
   border-radius: 4px;

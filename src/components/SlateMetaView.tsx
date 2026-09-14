@@ -1,16 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
-import { GitHubImage } from '@/components/GitHubImage'
-import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
+import { MarkdownBody } from '@/components/MarkdownBody'
 import { MetaIndexService } from '@/services/MetaIndexService'
 import type { MetaIndexEntry } from '@/services/MetaIndexService'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
-import { safeUrlTransform } from '@/utils/safeUrlTransform'
 
 interface SlateMetaViewProps {
   slateId: string
@@ -195,17 +190,12 @@ export function SlateMetaView({ slateId, slateTitle, slateMarkdown, slateContent
 
         {/* ── Markdown body ── */}
         {markdownContent ? (
-          <article className="ww-markdown px-1">
-            <MarkdownBaseContext.Provider value="">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                urlTransform={safeUrlTransform}
-                components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
-              >
-                {markdownContent}
-              </ReactMarkdown>
-            </MarkdownBaseContext.Provider>
-          </article>
+          <MarkdownBody
+            content={markdownContent}
+            docKey={`${slateId}|${slateTitle}`}
+            highlight={false}
+            className="px-1"
+          />
         ) : (
           <div
             className="rounded-2xl border border-dashed p-5 text-center"

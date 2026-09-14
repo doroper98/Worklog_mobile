@@ -1,5 +1,5 @@
 {
-  "note": "Single source for the ported desktop themes. Each theme declares only 5 colors; every other token is derived by scripts/gen-themes.mjs. Values mirror the desktop Workwiki theme set (dark family) and should be re-synced by hand if the desktop palette changes (see improvement plan §4.7).",
+  "note": "Single source for the ported desktop themes. Each theme declares only 5 colors; every other token is derived by scripts/gen-themes.mjs. Values mirror the desktop Workwiki theme set (dark family); NOTURNO is copied from the desktop themes.css block and should be re-synced by hand if the desktop palette changes (see improvement plan §4.7).",
   "palettes": [
     {
       "key": "cyprus",
@@ -15,11 +15,17 @@
       "key": "noturno",
       "label": "노투르노",
       "mode": "dark",
-      "primary": "#8AA0E8",
-      "bg": "#12141F",
-      "bg2": "#0C0E17",
-      "surface": "#1B1E2E",
-      "text": "#D6DBF0"
+      "primary": "#FF4103",
+      "bg": "#001621",
+      "bg2": "#000F17",
+      "surface": "#06222F",
+      "text": "#EFE3D4",
+      "accentText": "#FF7A4D",
+      "derive": {
+        "border": 15,
+        "borderStrong": 30,
+        "hairline": 8
+      }
     },
     {
       "key": "bridal",

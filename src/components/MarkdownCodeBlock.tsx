@@ -33,7 +33,14 @@ export function MarkdownCodeBlock({
 
   if (lang === 'mermaid') {
     const source = childrenToText(children).replace(/\n$/, '')
-    return <MermaidDiagram source={source} />
+    // The .mermaid-diagram wrapper carrying the URI-encoded source is the
+    // contract applyIslands reads to build a flow island (same shape the
+    // desktop renderer emits). The diagram itself still renders inside it.
+    return (
+      <div className="mermaid-diagram" data-mermaid-src={encodeURIComponent(source)}>
+        <MermaidDiagram source={source} />
+      </div>
+    )
   }
 
   return (

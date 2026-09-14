@@ -1,14 +1,8 @@
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
-import { GitHubImage } from '@/components/GitHubImage'
-import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
+import { MarkdownBody } from '@/components/MarkdownBody'
 import { htmlToMarkdown } from '@/utils/htmlToMarkdown'
-import { safeUrlTransform } from '@/utils/safeUrlTransform'
 import type { SlateEntry } from '@/services/CalendarService'
 
 interface SlateViewProps {
@@ -109,18 +103,10 @@ export function SlateView({ slate, onBack, onTabSelect, onFabTap }: SlateViewPro
           paddingBottom: 'calc(96px + var(--sai-bottom, 0px))',
         }}
       >
-        <article className="ww-markdown">
-          <MarkdownBaseContext.Provider value="">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
-              urlTransform={safeUrlTransform}
-              components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
-            >
-              {markdownContent}
-            </ReactMarkdown>
-          </MarkdownBaseContext.Provider>
-        </article>
+        <MarkdownBody
+          content={markdownContent}
+          docKey={`${slate.createdAt.slice(0, 10)}|${slate.title}`}
+        />
       </div>
 
       {/* FAB */}

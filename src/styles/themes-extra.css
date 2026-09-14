@@ -68,29 +68,31 @@
 
 [data-theme="noturno"] {
   /* Base surfaces */
-  --color-bg: #12141F;
-  --color-bg2: #0C0E17;
-  --color-surface: #1B1E2E;
+  --color-bg: #001621;
+  --color-bg2: #000F17;
+  --color-surface: #06222F;
   --color-surface-alt: color-mix(in srgb, var(--color-surface) 92%, var(--color-text));
   --color-surface-warm: color-mix(in srgb, var(--color-surface) 88%, var(--color-accent));
 
   /* Borders */
-  --color-border: color-mix(in srgb, var(--color-text) 10%, transparent);
-  --color-border-strong: color-mix(in srgb, var(--color-text) 18%, transparent);
-  --color-hairline: color-mix(in srgb, var(--color-text) 6%, transparent);
+  --color-border: color-mix(in srgb, var(--color-text) 15%, transparent);
+  --color-border-strong: color-mix(in srgb, var(--color-text) 30%, transparent);
+  --color-hairline: color-mix(in srgb, var(--color-text) 8%, transparent);
 
   /* Text */
-  --color-text: #D6DBF0;
+  --color-text: #EFE3D4;
   --color-text-sec: color-mix(in srgb, var(--color-text) 70%, transparent);
   --color-text-muted: color-mix(in srgb, var(--color-text) 48%, transparent);
   --color-text-faint: color-mix(in srgb, var(--color-text) 30%, transparent);
 
   /* Accent */
-  --color-accent: #8AA0E8;
+  --color-accent: #FF4103;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 85%, var(--color-text));
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);
   --color-accent-faint: color-mix(in srgb, var(--color-accent) 22%, transparent);
   --color-accent-text-on: #FFFFFF;
+  /* Lighter accent for small text; the base stays for fills/strokes */
+  --color-accent-text: #FF7A4D;
 
   /* Category (inherited from dark base) */
   --color-meet: #F7768E;
@@ -123,7 +125,7 @@
   --scrim: rgba(0, 0, 0, 0.55);
 
   /* Opaque fallback for no-blur environments */
-  --bg-opaque: #12141F;
+  --bg-opaque: #001621;
 }
 
 [data-theme="bridal"] {

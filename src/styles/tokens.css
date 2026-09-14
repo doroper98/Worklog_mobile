@@ -29,6 +29,9 @@
   --color-accent-soft: rgba(61, 90, 254, 0.08);
   --color-accent-faint: rgba(61, 90, 254, 0.14);
   --color-accent-text-on: #FFFFFF;
+  /* Accent used for small text. Defaults to the accent itself; a theme
+     whose accent is too dim for small type overrides just this one. */
+  --color-accent-text: var(--color-accent);
 
   /* Category */
   --color-meet: #C2456F;

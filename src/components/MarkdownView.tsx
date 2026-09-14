@@ -1,14 +1,8 @@
 import { useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
 
 import { Icon } from '@/components/primitives/Icon'
 import { LiquidGlassSurface } from '@/components/primitives/LiquidGlassSurface'
-import { GitHubImage } from '@/components/GitHubImage'
-import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
-import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
-import { safeUrlTransform } from '@/utils/safeUrlTransform'
+import { MarkdownBody } from '@/components/MarkdownBody'
 
 interface MarkdownViewProps {
   title: string
@@ -103,18 +97,7 @@ export function MarkdownView({ title, path, content, loading, error, onBack, onT
             </div>
           </div>
         ) : (
-          <article className="ww-markdown">
-            <MarkdownBaseContext.Provider value={basePath}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[[rehypeHighlight, { plainText: ['mermaid'], ignoreMissing: true }]]}
-                urlTransform={safeUrlTransform}
-                components={{ code: MarkdownCodeBlock, pre: MarkdownPre, img: GitHubImage }}
-              >
-                {content}
-              </ReactMarkdown>
-            </MarkdownBaseContext.Provider>
-          </article>
+          <MarkdownBody content={content} docKey={path} basePath={basePath} />
         )}
       </div>
 

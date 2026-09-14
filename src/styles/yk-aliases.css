@@ -1,0 +1,50 @@
+/*
+ * --yk-* token aliases.
+ *
+ * The island modules and islands.css are copied verbatim from the desktop app,
+ * which names its theme tokens --yk-*. Rather than fork those files, map the
+ * names onto the mobile token set here. The aliases resolve through var(), so
+ * they follow whichever theme is active on <html> with no per-theme duplication.
+ *
+ * islandTokens.ts reads several of these as computed colors for SVG fills, so
+ * every value must resolve to a real color — --yk-surface-solid in particular
+ * must stay opaque, since SVG shapes are painted directly with it.
+ */
+
+:root {
+  /* Accent */
+  --yk-primary: var(--color-accent);
+  --yk-primary-soft: var(--color-accent-soft);
+
+  /* Surfaces */
+  --yk-bg: var(--color-bg);
+  --yk-bg-secondary: var(--color-bg2);
+  --yk-surface: var(--color-surface);
+  --yk-surface-solid: var(--color-surface);
+  --yk-surface-hover: var(--color-surface-alt);
+  --yk-hover-bg: var(--color-surface-alt);
+
+  /* Text */
+  --yk-text: var(--color-text);
+  --yk-text-secondary: var(--color-text-sec);
+  --yk-text-muted: var(--color-text-muted);
+
+  /* Borders */
+  --yk-border-color: var(--color-border);
+  --yk-border-strong: var(--color-border-strong);
+
+  /* Status colors — fixed, so island semantics read the same in every theme */
+  --yk-green: #34c759;
+  --yk-orange: #ff9500;
+  --yk-red: #ff3b30;
+  --yk-blue: #007aff;
+
+  /* Typography */
+  --yk-font: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --yk-font-mono: "Berkeley Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --yk-radius-sm: 8px;
+  --yk-radius-xs: 6px;
+}
