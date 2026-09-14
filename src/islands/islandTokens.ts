@@ -126,6 +126,20 @@ export function wrapText(text: string, maxW: number, size: number, weight: numbe
   return lines.length ? lines : [''];
 }
 
+/** 균형 줄바꿈: 같은 줄 수를 유지하는 가장 좁은 폭으로 다시 감싸 줄 길이를 비슷하게 만든다.
+ *  (가운데 정렬 노드에서 첫 줄만 길고 둘째 줄이 짧은 모양을 피한다) */
+export function wrapBalanced(text: string, maxW: number, size: number, weight: number, family: string): string[] {
+  const base = wrapText(text, maxW, size, weight, family);
+  if (base.length <= 1) return base;
+  let best = base;
+  for (let w = maxW - 8; w >= maxW * 0.55; w -= 8) {
+    const cand = wrapText(text, w, size, weight, family);
+    if (cand.length !== base.length) break;
+    best = cand;
+  }
+  return best;
+}
+
 export function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

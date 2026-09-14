@@ -13,7 +13,7 @@
  *  2,3 = 되돌림 · 1,3 = 참조. 색은 앱 --yk-* 토큰.
  */
 import type { FlowGraph, FlowEdge } from './mermaidFlowParser';
-import { resolveIslandTokens, measureText, wrapText, svgEl, svgText } from './islandTokens';
+import { resolveIslandTokens, measureText, wrapBalanced, svgEl, svgText } from './islandTokens';
 import type { IslandTokens } from './islandTokens';
 
 export type FlowIslandKind = 'rail' | 'branch' | 'cause' | 'map';
@@ -209,7 +209,7 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
   let labelW = 0;
   for (const s of steps) labelW = Math.max(labelW, measureText(s.label, SZ, 600, t.font));
   const nodeW = Math.min(220, Math.max(124, Math.ceil(labelW) + 2 * pad));
-  const lines = steps.map(s => wrapText(s.label, nodeW - 2 * pad, SZ, 600, t.font));
+  const lines = steps.map(s => wrapBalanced(s.label, nodeW - 2 * pad, SZ, 600, t.font));
   const maxL = Math.max(...lines.map(l => l.length));
   const nodeH = 18 + maxL * 16;
   const gapX = 44, gapY = hasBack ? 58 : 44, mL = hasBack ? 36 : 12, mT = hasBack ? 34 : 14, mR = hasBack ? 36 : 24;
@@ -239,7 +239,7 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
     const p = pos[i];
     s += svgEl('rect', { x: p.x, y: p.y, width: nodeW, height: nodeH, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
     const blockH = lines[i].length * 16, top = p.y + (nodeH - blockH) / 2;
-    lines[i].forEach((ln, k) => { s += svgText(p.x + pad, top + 13 + k * 16, ln, { size: SZ, weight: 600, fill: t.text }, t); });
+    lines[i].forEach((ln, k) => { s += svgText(p.x + nodeW / 2, top + 13 + k * 16, ln, { size: SZ, weight: 600, fill: t.text, anchor: 'middle' }, t); });
     if (st.branch) {
       const bx = p.x + 18, by = p.y + nodeH;
       st.branch.forEach((b, k) => {
@@ -312,7 +312,108 @@ function buildBranch(g: FlowGraph): TrunkStep[] {
   return steps;
 }
 
+/** 좁은 폭(폰) 분기 궤도: 가지를 오른쪽이 아니라 본선 아래에 들여쓴 세로 목록으로 놓는다.
+ *  가로 스크롤 없이 한 열로 읽히고, 본선 연결선은 왼쪽 가장자리로 우회해 가지를 가로지르지 않는다. */
+function drawBranchNarrow(g: FlowGraph, width: number, t: IslandTokens): string {
+  const uid = nextUid();
+  const steps = buildBranch(g);
+  const SZ = 12.5, pad = 12, W = Math.max(280, width);
+  const hasLoop = steps.some(s => s.loops.length);
+  const mL = hasLoop ? 34 : 10, mR = 10, mT = 12, gapY = 26, indent = 26, chainGap = 10;
+  const labelOf = (id: string) => g.nodes.get(id)!.label;
+  const nodeW = W - mL - mR;
+  const chainW = nodeW - indent;
+  const nodeH = (lines: number) => 18 + lines * 16;
+  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; decision: boolean };
+  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = mT;
+  const chainCols: Array<{ step: number; chain: Chain; placed: Placed[] }> = [];
+  const itemY: number[] = [];
+  steps.forEach((st) => {
+    const lines = wrapBalanced(labelOf(st.id), nodeW - 2 * pad, SZ, 600, t.font); const h = nodeH(lines.length);
+    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, decision: g.nodes.get(st.id)!.shape === 'decision' };
+    trunk.push(p);
+    y += h;
+    // 잎·입력 항목은 노드 바로 아래
+    const itemRows = st.leaves.length + st.joins.length;
+    itemY.push(y + 16);
+    if (itemRows) y += 8 + itemRows * 20;
+    // 가지: 들여쓴 세로 목록 (태그 줄 + 노드들)
+    st.chains.forEach((ch) => {
+      y += 22 + (ch.tag ? 16 : 0);
+      const placed: Placed[] = [];
+      for (const id of ch.nodes) {
+        const ls = wrapBalanced(labelOf(id), chainW - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
+        placed.push({ id, x: mL + indent, y, w: chainW, h: hh, lines: ls, decision: g.nodes.get(id)!.shape === 'decision' });
+        y += hh + chainGap + 14;
+      }
+      y -= chainGap + 14;
+      chainCols.push({ step: trunk.length - 1, chain: ch, placed });
+      extras.push(...placed);
+    });
+    y += gapY;
+  });
+  const H = y - gapY + 12;
+  // 본선 연결선: 가지가 끼면 왼쪽 가장자리로 우회
+  for (let i = 0; i < trunk.length - 1; i++) {
+    const a = trunk[i], b = trunk[i + 1];
+    const busy = steps[i].chains.length > 0;
+    if (busy) { const lx = mL + 10; svg += pathEl(`M${lx} ${a.y + a.h + 1} L${lx} ${b.y - 3}`, 'flow', t, uid); if (steps[i].tag) svg += svgText(lx + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t); }
+    else { const xm = a.x + a.w / 2; svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, 'flow', t, uid); if (steps[i].tag) svg += svgText(xm + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t); }
+  }
+  // 가지 연결선
+  for (const col of chainCols) {
+    const from = trunk[col.step]; const first = col.placed[0]; const last = col.placed[col.placed.length - 1];
+    const kind: StrokeKind = col.chain.dashed ? 'ref' : 'flow';
+    const cx = first.x + Math.min(40, first.w / 2);
+    svg += pathEl(`M${cx} ${from.y + from.h + 1} L${cx} ${first.y - 3}`, kind, t, uid);
+    if (col.chain.tag) {
+      const lw = measureText(col.chain.tag, 10.5, 600, t.font) + 12; const ty = first.y - 22;
+      svg += svgEl('rect', { x: cx + 8, y: ty, width: lw, height: 18, rx: 4, fill: t.surface, stroke: t.green, 'stroke-width': 1 });
+      svg += svgText(cx + 14, ty + 13, col.chain.tag, { size: 10.5, weight: 600, fill: t.green }, t);
+    }
+    for (let k = 0; k < col.placed.length - 1; k++) { const p = col.placed[k], q = col.placed[k + 1]; const xx = p.x + Math.min(40, p.w / 2); svg += pathEl(`M${xx} ${p.y + p.h + 1} L${xx} ${q.y - 3}`, 'flow', t, uid); }
+    if (col.chain.rejoin !== null) {
+      const rj = trunk[col.chain.rejoin]; const lx = last.x + Math.min(40, last.w / 2);
+      if (rj === trunk[col.step + 1] || rj.y > last.y) {
+        // 합류점이 바로 아래면 세로로, 더 아래면 오른쪽 가장자리로 우회
+        if (rj === trunk[col.step + 1]) svg += pathEl(`M${lx} ${last.y + last.h + 1} L${lx} ${rj.y - 3}`, kind, t, uid);
+        else { const rx = mL + nodeW + 4; svg += pathEl(`M${last.x + last.w + 1} ${last.y + last.h / 2} H${rx} V${rj.y + rj.h / 2} L${rj.x + rj.w + 3} ${rj.y + rj.h / 2}`, kind, t, uid); }
+      }
+    }
+  }
+  // 되돌림(왼쪽 고리)
+  steps.forEach((st, i) => {
+    st.loops.forEach((lp, k) => {
+      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 12 - k * 6;
+      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${b.y + b.h / 2} L${b.x - 3} ${b.y + b.h / 2}`, 'back', t, uid);
+      if (lp.label) svg += svgText(lx - 3, (a.y + b.y + b.h) / 2, lp.label, { size: 10, fill: t.text2, anchor: 'end' }, t);
+    });
+  });
+  const drawNode = (p: Placed, weight: number) => {
+    if (p.decision) svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: p.h / 2, fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
+    else svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
+    const top = p.y + (p.h - p.lines.length * 16) / 2;
+    p.lines.forEach((ln, k) => { svg += svgText(p.x + p.w / 2, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text, anchor: 'middle' }, t); });
+  };
+  trunk.forEach(p => drawNode(p, 600)); extras.forEach(p => drawNode(p, 500));
+  // 잎·입력 항목
+  steps.forEach((st, i) => {
+    const p = trunk[i]; let yy = itemY[i];
+    const items = [...st.joins.map(j => ({ tag: j.tag, label: `${j.label} →`, col: t.blue })), ...st.leaves.map(l => ({ tag: l.tag, label: l.label, col: t.text2 }))];
+    for (const it of items) {
+      const bx = p.x + 18;
+      svg += svgEl('path', { d: `M${bx} ${p.y + p.h} V${yy} H${bx + 12}`, fill: 'none', stroke: t.border, 'stroke-width': 1.2 });
+      let x = bx + 14;
+      if (it.tag) { const lw = measureText(it.tag, 10.5, 600, t.font) + 12; svg += svgEl('rect', { x, y: yy - 9, width: lw, height: 18, rx: 4, fill: t.surface, stroke: it.col, 'stroke-width': 1 }); svg += svgText(x + 6, yy + 4, it.tag, { size: 10.5, weight: 600, fill: it.col }, t); x += lw + 8; }
+      svg += svgText(x, yy + 4, it.label, { size: 12, fill: t.text2 }, t);
+      yy += 20;
+    }
+  });
+  return svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', xmlns: 'http://www.w3.org/2000/svg' }, defs(t, uid) + svg);
+}
+
 function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
+  if (width < 520) return drawBranchNarrow(g, width, t);
   const uid = nextUid();
   const steps = buildBranch(g);
   const SZ = 12.5, pad = 12, W = Math.max(300, width);
@@ -322,7 +423,7 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
   // 본선 노드 폭: 라벨 최대 폭에 맞추되 220 을 넘기지 않는다
   let tw = 0; for (const s of steps) tw = Math.max(tw, measureText(labelOf(s.id), SZ, 600, t.font));
   const nodeW = Math.min(220, Math.max(150, Math.ceil(tw) + 2 * pad));
-  const wrapN = (id: string, w: number) => wrapText(labelOf(id), w - 2 * pad, SZ, id === steps[0].id ? 600 : 600, t.font);
+  const wrapN = (id: string, w: number) => wrapBalanced(labelOf(id), w - 2 * pad, SZ, 600, t.font);
   const chainNodeW = (id: string) => Math.min(200, Math.max(110, Math.ceil(measureText(labelOf(id), SZ, 500, t.font)) + 2 * pad));
   const nodeH = (lines: number) => 18 + lines * 16;
   // 세로 배치
@@ -341,7 +442,7 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
       let x = mL + nodeW + gapX + (k > 0 ? 18 : 0) + tagW; // 태그 자리
       const placed: Placed[] = [];
       for (const id of ch.nodes) {
-        const w = chainNodeW(id); const ls = wrapText(labelOf(id), w - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
+        const w = chainNodeW(id); const ls = wrapBalanced(labelOf(id), w - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
         placed.push({ id, x, y: rowY + (h - hh) / 2, w, h: hh, lines: ls, decision: g.nodes.get(id)!.shape === 'decision' });
         x += w + gapX;
       }
@@ -397,7 +498,7 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
       svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: p.h / 2, fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
     } else svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
     const top = p.y + (p.h - p.lines.length * 16) / 2;
-    p.lines.forEach((ln, k) => { svg += svgText(p.x + pad, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text }, t); });
+    p.lines.forEach((ln, k) => { svg += svgText(p.x + p.w / 2, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text, anchor: 'middle' }, t); });
   };
   trunk.forEach(p => drawNode(p, 600)); extras.forEach(p => drawNode(p, 500));
   // 잎·입력 항목
@@ -432,7 +533,7 @@ function drawCause(g: FlowGraph, width: number, t: IslandTokens): string {
   });
   const W = Math.max(320, width), gap = Math.min(110, Math.max(64, W * 0.15)), colW = (W - gap - 16) / 2, pad = 12, SZ = 12.5;
   const laid = rows.map(r => {
-    const cl = wrapText(r.cause, colW - 2 * pad, SZ, 600, t.font), el = wrapText(r.effect || '', colW - 2 * pad, SZ, 600, t.font);
+    const cl = wrapBalanced(r.cause, colW - 2 * pad, SZ, 600, t.font), el = wrapBalanced(r.effect || '', colW - 2 * pad, SZ, 600, t.font);
     return { ...r, cl, el, h: Math.max(cl.length, el.length) * 16 + 20 };
   });
   let y = 12, s = '';
@@ -443,10 +544,10 @@ function drawCause(g: FlowGraph, width: number, t: IslandTokens): string {
   for (const rw of laid) {
     const x1 = 8, x2 = 8 + colW + gap;
     s += svgEl('rect', { x: x1, y, width: colW, height: rw.h, rx: 6, fill: t.surface, stroke: rw.strong ? t.text : t.borderStrong, 'stroke-width': rw.strong ? 1.4 : 1 });
-    rw.cl.forEach((ln, k) => { s += svgText(x1 + pad, y + 18 + k * 16, ln, { size: SZ, weight: 600, fill: t.text }, t); });
+    rw.cl.forEach((ln, k) => { s += svgText(x1 + colW / 2, y + 18 + k * 16, ln, { size: SZ, weight: 600, fill: t.text, anchor: 'middle' }, t); });
     if (rw.effect) {
       s += svgEl('rect', { x: x2, y, width: colW, height: rw.h, rx: 6, fill: t.surface, stroke: t.border, 'stroke-width': 1 });
-      rw.el.forEach((ln, k) => { s += svgText(x2 + pad, y + 18 + k * 16, ln, { size: SZ, weight: 600, fill: t.text }, t); });
+      rw.el.forEach((ln, k) => { s += svgText(x2 + colW / 2, y + 18 + k * 16, ln, { size: SZ, weight: 600, fill: t.text, anchor: 'middle' }, t); });
       const ym = y + rw.h / 2;
       s += pathEl(`M${x1 + colW + 2} ${ym} L${x2 - 4} ${ym}`, rw.strong ? 'no' : rw.dashed ? 'ref' : 'soft', t, uid);
     }
