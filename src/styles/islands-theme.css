@@ -40,3 +40,63 @@
 [style*="-9999px"] {
   transition: none !important;
 }
+
+/*
+ * Row-turn connectors clipped at the rail's left edge.
+ *
+ * A rail that wraps lays its steps out serpentine, and flowIslands routes the
+ * row-to-row connector 18px past the node it leaves. Rows turning right have
+ * the room (right margin 24), but rows turning left leave from column 0 at
+ * left margin 12, so the connector reaches x=-6 — outside the SVG, which clips
+ * it. The arrow then appears to leave the diagram and re-enter further down.
+ *
+ * The overhang is a fixed 6px (18 - 12) and only occurs on rails without back
+ * edges, which use the wider 36px margin. The stage already reserves 8px of
+ * left padding, so letting the SVG paint outside its box puts the connector in
+ * that padding — the scroll container still clips at its padding box, so
+ * nothing escapes the island. The geometry itself belongs to the desktop
+ * module, which is kept verbatim; this only stops the clip.
+ */
+.md-content .ww-flow-stage svg {
+  overflow: visible;
+}
+
+/*
+ * Touch-sized [섬 | 표] switch.
+ *
+ * islands.css sizes it for a mouse — 11px type in a 1px-tall padding box, so
+ * roughly an 18px tap target with a hairline active state that barely reads on
+ * a phone. Rebuild it as a segmented control with a real touch target and an
+ * active segment that stands out, matching the app's own pill controls.
+ */
+.md-content .ww-sw {
+  padding: 2px;
+  gap: 2px;
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+}
+
+.md-content .ww-sw button {
+  min-height: 30px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text-muted);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.md-content .ww-sw button[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+/* A little more room between the label chip and the switch */
+.md-content .ww-top {
+  gap: 10px;
+  margin-bottom: 8px;
+}
