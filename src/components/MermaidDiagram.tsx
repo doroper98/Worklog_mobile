@@ -54,8 +54,12 @@ export function MermaidDiagram({ source }: Props) {
           startOnLoad: false,
           theme: effectiveTheme === 'dark' ? 'dark' : 'default',
           securityLevel: 'strict',
+          // SVG labels rather than html ones: a foreignObject is sized from a
+          // measurement that Korean text overruns, so the label spills outside
+          // its node. <text> is measured by the same engine that draws it.
+          htmlLabels: false,
           flowchart: {
-            htmlLabels: true,
+            htmlLabels: false,
             curve: 'basis',
             // Wrap long labels into several lines instead of one wide node —
             // narrow phone screens shrink a wide diagram past readability.

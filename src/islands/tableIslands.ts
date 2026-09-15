@@ -19,7 +19,7 @@ export const TABLE_KIND_LABEL: Record<TableIslandKind, string> = {
 
 export interface ParsedTable { headers: string[]; rows: string[][]; cells: HTMLElement[][] }
 
-const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu;
+const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{25A0}-\u{25FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu;
 
 function cellText(el: Element): string {
   return (el.textContent || '').replace(EMOJI_RE, '').replace(/\s+/g, ' ').trim();
@@ -44,11 +44,13 @@ export function parseTable(table: HTMLTableElement): ParsedTable | null {
 
 const isNum = (s: string) => /^[-+]?\d[\d,]*(?:\.\d+)?\s*(?:%|건|개|명|원|억|만|천|kg|g|mm|ms|s)?$/.test(s.trim()) || /^\d+(?:\.\d+)?$/.test(s.trim());
 
+const isBlank = (v: string) => /^(?:|-|—|–|n\/a|해당 ?없음)$/i.test(v.trim());
+
 function numericCols(p: ParsedTable): number[] {
   const out: number[] = [];
   for (let c = 0; c < p.headers.length; c++) {
-    const vals = p.rows.map(r => r[c] || '').filter(v => v !== '');
-    if (vals.length >= Math.max(1, p.rows.length * 0.7) && vals.every(isNum)) out.push(c);
+    const vals = p.rows.map(r => r[c] || '').filter(v => !isBlank(v));
+    if (vals.length >= 1 && vals.length >= p.rows.length * 0.3 && vals.every(isNum)) out.push(c);
   }
   return out;
 }
@@ -87,6 +89,18 @@ export function classifyTable(p: ParsedTable): TableIslandKind | null {
   // 사실 목록: 2열 + 항목/구분 류 머리글
   if (cols === 2 && /^(항목|구분|설정|지표|필드|속성|키|key|영역|분류|대상|실행 계획|화면 영역)$/i.test(hs[0]) && n <= 20) return 'kv';
   return null;
+}
+
+/** 우선순위 표(우선순위·항목·판단)를 읽어 원인·결과 섬에 합칠 정보로 만든다. 못 읽으면 null. */
+export function parsePriorityTable(p: ParsedTable): Map<string, { level: string; note: string }> | null {
+  const hs = p.headers;
+  const iLv = hs.findIndex(h => /우선순위|중요도|priority|등급|심각도/i.test(h));
+  const iItem = hs.findIndex((h, i) => i !== iLv && /항목|리스크|사안|내용|이슈/.test(h));
+  const iNote = hs.findIndex((h, i) => i !== iLv && i !== iItem && /판단|근거|비고|영향|설명/.test(h));
+  if (iLv < 0 || iItem < 0) return null;
+  const m = new Map<string, { level: string; note: string }>();
+  for (const r of p.rows) { const item = (r[iItem] || '').trim(); if (item) m.set(item, { level: (r[iLv] || '').trim(), note: iNote >= 0 ? (r[iNote] || '').trim() : '' }); }
+  return m.size ? m : null;
 }
 
 export type StatusKind = 'done' | 'run' | 'hold' | 'need' | 'stop';
@@ -193,6 +207,10 @@ function buildDec(p: ParsedTable): HTMLElement {
   return frag;
 }
 
+/** 본인 이름: applyIslands 가 넘겨준다(없으면 앱 주체자 기본값). */
+let SELF_NAME = '서영균';
+export function setSelfName(name: string): void { if (name) SELF_NAME = name; }
+
 function buildTodo(p: ParsedTable): HTMLElement {
   const hs = p.headers;
   const iWho = find(hs, /담당/), iAct = find(hs, /액션|행동|action|할\s?일|작업|내용/i), iDue = find(hs, /기한|일정|due|마감|시점/i);
@@ -204,9 +222,12 @@ function buildTodo(p: ParsedTable): HTMLElement {
   const wrap = h('div', 'ww-todo');
   const groups = new Map<string, number[]>();
   p.rows.forEach((r, i) => { const k = r[iWho] || '(담당 미정)'; if (!groups.has(k)) groups.set(k, []); groups.get(k)!.push(i); });
-  for (const [who, idxs] of groups) {
+  // 본인이 주체인 묶음("서영균", "서영균 → …")을 맨 위로
+  const isSelf = (who: string) => who.split(/\s*(?:→|->)\s*/)[0].split(/[,·/]/)[0].replace(HONORIFIC_RE, '').trim() === SELF_NAME;
+  const ordered = [...groups.entries()].sort((a, b) => Number(isSelf(b[0])) - Number(isSelf(a[0])));
+  for (const [who, idxs] of ordered) {
     const g = h('div', 'ww-todo-group');
-    const head = h('div', 'ww-todo-who'); head.appendChild(personChips(who)); head.appendChild(h('span', 'ww-todo-cnt', `${idxs.length}건`)); g.appendChild(head);
+    const head = h('div', 'ww-todo-who'); head.appendChild(personChips(who)); head.appendChild(h('span', 'ww-todo-cnt', `${idxs.length}건${isSelf(who) ? ' · 본인' : ''}`)); g.appendChild(head);
     const ul = h('ul');
     for (const i of idxs) {
       const r = p.rows[i], li = h('li');
@@ -274,10 +295,14 @@ function buildRating(p: ParsedTable): HTMLElement {
   grid.appendChild(h('div', 'ww-rating-h ww-l', p.headers[0]));
   crit.forEach(c => grid.appendChild(h('div', 'ww-rating-h', p.headers[c].replace(/\s?기여|력$/g, ''))));
   grid.appendChild(h('div', 'ww-rating-h ww-r', p.headers[iAvg]));
-  const avgs = p.rows.map(r => parseFloat(r[iAvg]) || 0); const top = Math.max(...avgs);
+  const avgs = p.rows.map(r => isBlank(r[iAvg] || '') ? -1 : parseFloat(r[iAvg]) || 0); const top = Math.max(...avgs);
   const maxScore = Math.max(5, ...p.rows.flatMap(r => crit.map(c => parseFloat(r[c]) || 0)));
   p.rows.forEach((r, i) => {
     grid.appendChild(h('div', 'ww-rating-name', r[0].replace(HONORIFIC_RE, '')));
+    if (crit.every(c => isBlank(r[c] || ''))) {
+      const na = h('div', 'ww-rating-na', '미평가 (발언 없음)'); na.style.gridColumn = `span ${crit.length + 1}`; grid.appendChild(na);
+      return;
+    }
     crit.forEach(c => {
       const v = Math.round(parseFloat(r[c]) || 0), sc = h('div', 'ww-rating-sc');
       for (let k = 1; k <= maxScore; k++) sc.appendChild(h('i', k <= v ? 'on' : undefined));
@@ -328,7 +353,7 @@ function buildIssues(p: ParsedTable): HTMLElement {
   const frag = h('div');
   frag.appendChild(ghost('ww-head-issues', ghostCell(hs[0], `${hs[1]} · ${hs[2]}`)));
   const ul = h('ul', 'ww-issues');
-  const lab = (x: string) => x.replace(/\s.*$/, '').slice(0, 4);
+  const lab = (x: string) => x.replace(/^(추가|기타|주요)\s+/, '').replace(/\s.*$/, '').slice(0, 4);
   p.rows.forEach((r, i) => {
     const li = h('li');
     li.appendChild(cellInto(h('div', 'ww-issues-t'), p.cells[i][0]));

@@ -13,7 +13,35 @@
  *  2,3 = 되돌림 · 1,3 = 참조. 색은 앱 --yk-* 토큰.
  */
 import type { FlowGraph, FlowEdge } from './mermaidFlowParser';
-import { resolveIslandTokens, measureText, wrapBalanced, svgEl, svgText } from './islandTokens';
+import { resolveIslandTokens, measureText, labelWidth, wrapBalanced, svgEl, svgText } from './islandTokens';
+
+/** 라벨을 줄로 펼친다.
+ *  - 명시적 줄바꿈이 있고 첫 줄이 한글 없는 짧은 이름(c-DN, TOS, SimBD …)이면 "시스템 줄": 작은 흐린 글씨로 위에,
+ *    다음 단락이 굵은 제목(시안 2 단계 궤도와 같은 모양).
+ *  - 그 밖에는 첫 단락이 굵은 제목, 나머지 단락은 보통 굵기(E1 Stage 처럼 제목+설명).
+ *  head = 굵게 그릴 줄 수(시스템 줄 포함 인덱스 기준), sys = 시스템 줄 유무 */
+function layoutLabel(label: string, maxW: number, size: number, family: string): { lines: string[]; head: number; sys: boolean } {
+  if (!label.includes('\n')) return { lines: wrapBalanced(label, maxW, size, 600, family), head: Number.MAX_SAFE_INTEGER, sys: false };
+  const segs = label.split('\n');
+  const sys = segs.length >= 2 && segs[0].length <= 12 && !/[\u3131-\uD79D]/.test(segs[0]);
+  if (sys) {
+    const titleLines = wrapBalanced(segs[1], maxW, size, 600, family);
+    const rest = segs.slice(2).flatMap(sg => wrapBalanced(sg, maxW, size - 0.5, 400, family));
+    return { lines: [segs[0], ...titleLines, ...rest], head: 1 + titleLines.length, sys: true };
+  }
+  const headLines = wrapBalanced(segs[0], maxW, size, 600, family);
+  const rest = segs.slice(1).flatMap(sg => wrapBalanced(sg, maxW, size - 0.5, 400, family));
+  return { lines: [...headLines, ...rest], head: headLines.length, sys: false };
+}
+function drawLines(x: number, top: number, lines: string[], head: number, size: number, baseWeight: number, anchor: 'middle' | 'start', t: IslandTokens, sys = false): string {
+  let s = '';
+  lines.forEach((ln, k) => {
+    if (sys && k === 0) { s += svgText(x, top + 12 + k * 16, ln, { size: 10.5, weight: 500, fill: t.muted, anchor, family: t.mono }, t); return; }
+    const isHead = k < head;
+    s += svgText(x, top + 13 + k * 16, ln, { size: isHead ? size : size - 0.5, weight: isHead ? baseWeight : 400, fill: isHead ? t.text : t.text2, anchor }, t);
+  });
+  return s;
+}
 import type { IslandTokens } from './islandTokens';
 
 export type FlowIslandKind = 'rail' | 'branch' | 'cause' | 'map';
@@ -153,7 +181,7 @@ export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
   }
   // 경로 안에서 뒤로 가는 실선(되돌림)이나 결정 마름모가 있으면 분기 궤도가 맞다
   const hasDecision = Array.from(g.nodes.values()).some(x => x.shape === 'decision');
-  const hasLoop = g.edges.some(e => !e.dashed && onPath.has(e.from) && onPath.has(e.to) && path.indexOf(e.to) < path.indexOf(e.from));
+  const hasLoop = g.edges.some(e => onPath.has(e.from) && onPath.has(e.to) && path.indexOf(e.to) < path.indexOf(e.from));
   if (plainRail && !hasChain && !hasDecision && !hasLoop) return 'rail';
   return 'branch';
 }
@@ -207,9 +235,10 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
   const SZ = 12.5, pad = 14, W = Math.max(280, width);
   const hasBack = steps.some(s => s.branch?.some(b => b.back));
   let labelW = 0;
-  for (const s of steps) labelW = Math.max(labelW, measureText(s.label, SZ, 600, t.font));
-  const nodeW = Math.min(220, Math.max(124, Math.ceil(labelW) + 2 * pad));
-  const lines = steps.map(s => wrapBalanced(s.label, nodeW - 2 * pad, SZ, 600, t.font));
+  for (const s of steps) labelW = Math.max(labelW, labelWidth(s.label, SZ, 600, t.font));
+  const nodeW = Math.min(240, Math.max(124, Math.ceil(labelW) + 2 * pad));
+  const laid = steps.map(s => layoutLabel(s.label, nodeW - 2 * pad, SZ, t.font));
+  const lines = laid.map(l => l.lines);
   const maxL = Math.max(...lines.map(l => l.length));
   const nodeH = 18 + maxL * 16;
   const gapX = 44, gapY = hasBack ? 58 : 44, mL = hasBack ? 36 : 12, mT = hasBack ? 34 : 14, mR = hasBack ? 36 : 24;
@@ -230,6 +259,7 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
       const x1 = dir > 0 ? a.x + nodeW : a.x, x2 = dir > 0 ? b.x : b.x + nodeW;
       s += pathEl(`M${x1 + dir} ${am} L${x2 - dir * 3} ${am}`, 'flow', t, uid);
     } else {
+      if (cols === 1 && !steps[i].branch) { const xm = a.x + nodeW / 2; s += pathEl(`M${xm} ${a.y + nodeH + 1} L${xm} ${b.y - 3}`, 'flow', t, uid); continue; }
       const right = cols === 1 || a.r % 2 === 0;
       const ex = right ? a.x + nodeW : a.x, hx = right ? ex + 18 : ex - 18, tx = right ? b.x + nodeW + 3 : b.x - 3;
       s += pathEl(`M${ex + (right ? 1 : -1)} ${am} H${hx} V${bm} H${tx}`, 'flow', t, uid);
@@ -239,7 +269,7 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
     const p = pos[i];
     s += svgEl('rect', { x: p.x, y: p.y, width: nodeW, height: nodeH, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
     const blockH = lines[i].length * 16, top = p.y + (nodeH - blockH) / 2;
-    lines[i].forEach((ln, k) => { s += svgText(p.x + nodeW / 2, top + 13 + k * 16, ln, { size: SZ, weight: 600, fill: t.text, anchor: 'middle' }, t); });
+    s += drawLines(p.x + nodeW / 2, top, lines[i], laid[i].head, SZ, 600, 'middle', t, laid[i].sys);
     if (st.branch) {
       const bx = p.x + 18, by = p.y + nodeH;
       st.branch.forEach((b, k) => {
@@ -324,13 +354,13 @@ function drawBranchNarrow(g: FlowGraph, width: number, t: IslandTokens): string 
   const nodeW = W - mL - mR;
   const chainW = nodeW - indent;
   const nodeH = (lines: number) => 18 + lines * 16;
-  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; decision: boolean };
-  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = mT;
+  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; head: number; sys: boolean; decision: boolean };
+  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = hasLoop ? mT + 14 : mT;
   const chainCols: Array<{ step: number; chain: Chain; placed: Placed[] }> = [];
   const itemY: number[] = [];
   steps.forEach((st) => {
-    const lines = wrapBalanced(labelOf(st.id), nodeW - 2 * pad, SZ, 600, t.font); const h = nodeH(lines.length);
-    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, decision: g.nodes.get(st.id)!.shape === 'decision' };
+    const ll = layoutLabel(labelOf(st.id), nodeW - 2 * pad, SZ, t.font); const lines = ll.lines; const h = nodeH(lines.length);
+    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, head: ll.head, sys: ll.sys, decision: g.nodes.get(st.id)!.shape === 'decision' };
     trunk.push(p);
     y += h;
     // 잎·입력 항목은 노드 바로 아래
@@ -342,8 +372,8 @@ function drawBranchNarrow(g: FlowGraph, width: number, t: IslandTokens): string 
       y += 22 + (ch.tag ? 16 : 0);
       const placed: Placed[] = [];
       for (const id of ch.nodes) {
-        const ls = wrapBalanced(labelOf(id), chainW - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
-        placed.push({ id, x: mL + indent, y, w: chainW, h: hh, lines: ls, decision: g.nodes.get(id)!.shape === 'decision' });
+        const cl = layoutLabel(labelOf(id), chainW - 2 * pad, SZ, t.font); const ls = cl.lines; const hh = nodeH(ls.length);
+        placed.push({ id, x: mL + indent, y, w: chainW, h: hh, lines: ls, head: cl.head, sys: cl.sys, decision: g.nodes.get(id)!.shape === 'decision' });
         y += hh + chainGap + 14;
       }
       y -= chainGap + 14;
@@ -384,16 +414,16 @@ function drawBranchNarrow(g: FlowGraph, width: number, t: IslandTokens): string 
   // 되돌림(왼쪽 고리)
   steps.forEach((st, i) => {
     st.loops.forEach((lp, k) => {
-      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 12 - k * 6;
-      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${b.y + b.h / 2} L${b.x - 3} ${b.y + b.h / 2}`, 'back', t, uid);
-      if (lp.label) svg += svgText(lx - 3, (a.y + b.y + b.h) / 2, lp.label, { size: 10, fill: t.text2, anchor: 'end' }, t);
+      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 12 - k * 6; const ty = b.y - 8;
+      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${ty} H${b.x + 24} V${b.y - 3}`, 'back', t, uid);
+      if (lp.label) svg += svgText(b.x + 30, ty - 4, lp.label, { size: 10, fill: t.text2 }, t);
     });
   });
   const drawNode = (p: Placed, weight: number) => {
     if (p.decision) svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: p.h / 2, fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
     else svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
     const top = p.y + (p.h - p.lines.length * 16) / 2;
-    p.lines.forEach((ln, k) => { svg += svgText(p.x + p.w / 2, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text, anchor: 'middle' }, t); });
+    svg += drawLines(p.x + p.w / 2, top, p.lines, p.head, SZ, weight, 'middle', t, p.sys);
   };
   trunk.forEach(p => drawNode(p, 600)); extras.forEach(p => drawNode(p, 500));
   // 잎·입력 항목
@@ -421,18 +451,17 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
   const mL = hasLoop ? 40 : 12, mT = 12, gapY = 30, gapX = 30, rowGap = 12;
   const labelOf = (id: string) => g.nodes.get(id)!.label;
   // 본선 노드 폭: 라벨 최대 폭에 맞추되 220 을 넘기지 않는다
-  let tw = 0; for (const s of steps) tw = Math.max(tw, measureText(labelOf(s.id), SZ, 600, t.font));
-  const nodeW = Math.min(220, Math.max(150, Math.ceil(tw) + 2 * pad));
-  const wrapN = (id: string, w: number) => wrapBalanced(labelOf(id), w - 2 * pad, SZ, 600, t.font);
-  const chainNodeW = (id: string) => Math.min(200, Math.max(110, Math.ceil(measureText(labelOf(id), SZ, 500, t.font)) + 2 * pad));
+  let tw = 0; for (const s of steps) tw = Math.max(tw, labelWidth(labelOf(s.id), SZ, 600, t.font));
+  const nodeW = Math.min(300, Math.max(150, Math.ceil(tw) + 2 * pad));
+  const chainNodeW = (id: string) => Math.min(220, Math.max(110, Math.ceil(labelWidth(labelOf(id), SZ, 500, t.font)) + 2 * pad));
   const nodeH = (lines: number) => 18 + lines * 16;
   // 세로 배치
-  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; decision: boolean };
-  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = mT; let maxX = mL + nodeW;
+  type Placed = { id: string; x: number; y: number; w: number; h: number; lines: string[]; head: number; sys: boolean; decision: boolean };
+  const trunk: Placed[] = []; const extras: Placed[] = []; let svg = ''; let y = hasLoop ? mT + 14 : mT; let maxX = mL + nodeW;
   const chainRows: Array<{ step: number; chain: Chain; y: number; placed: Placed[] }> = [];
   steps.forEach((st) => {
-    const lines = wrapN(st.id, nodeW); const h = nodeH(lines.length);
-    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, decision: g.nodes.get(st.id)!.shape === 'decision' };
+    const ll = layoutLabel(labelOf(st.id), nodeW - 2 * pad, SZ, t.font); const lines = ll.lines; const h = nodeH(lines.length);
+    const p: Placed = { id: st.id, x: mL, y, w: nodeW, h, lines, head: ll.head, sys: ll.sys, decision: g.nodes.get(st.id)!.shape === 'decision' };
     trunk.push(p);
     // 가지 행: 첫 가지는 노드와 같은 높이, 다음 가지는 아래 행
     let rowY = y;
@@ -442,8 +471,8 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
       let x = mL + nodeW + gapX + (k > 0 ? 18 : 0) + tagW; // 태그 자리
       const placed: Placed[] = [];
       for (const id of ch.nodes) {
-        const w = chainNodeW(id); const ls = wrapBalanced(labelOf(id), w - 2 * pad, SZ, 500, t.font); const hh = nodeH(ls.length);
-        placed.push({ id, x, y: rowY + (h - hh) / 2, w, h: hh, lines: ls, decision: g.nodes.get(id)!.shape === 'decision' });
+        const w = chainNodeW(id); const cl = layoutLabel(labelOf(id), w - 2 * pad, SZ, t.font); const ls = cl.lines; const hh = nodeH(ls.length);
+        placed.push({ id, x, y: rowY + (h - hh) / 2, w, h: hh, lines: ls, head: cl.head, sys: cl.sys, decision: g.nodes.get(id)!.shape === 'decision' });
         x += w + gapX;
       }
       maxX = Math.max(maxX, x - gapX + 20);
@@ -487,9 +516,10 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
   // 되돌림(왼쪽 고리)
   steps.forEach((st, i) => {
     st.loops.forEach((lp, k) => {
-      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 14 - k * 6;
-      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${b.y + b.h / 2} L${b.x - 3} ${b.y + b.h / 2}`, 'back', t, uid);
-      if (lp.label) svg += svgText(lx - 3, (a.y + b.y + b.h) / 2, lp.label, { size: 10, fill: t.text2, anchor: 'end' }, t);
+      const a = trunk[i], b = trunk[lp.to]; const lx = mL - 14 - k * 6; const ty = b.y - 8;
+      // 되돌림: 왼쪽으로 나가 위로 올라간 뒤 대상 노드 위에서 들어간다. 라벨은 그 위 가로 구간에.
+      svg += pathEl(`M${a.x - 1} ${a.y + a.h / 2} H${lx} V${ty} H${b.x + 24} V${b.y - 3}`, 'back', t, uid);
+      if (lp.label) svg += svgText(b.x + 30, ty - 4, lp.label, { size: 10, fill: t.text2 }, t);
     });
   });
   // 노드
@@ -498,7 +528,7 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
       svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: p.h / 2, fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
     } else svg += svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 6, fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 });
     const top = p.y + (p.h - p.lines.length * 16) / 2;
-    p.lines.forEach((ln, k) => { svg += svgText(p.x + p.w / 2, top + 13 + k * 16, ln, { size: SZ, weight, fill: t.text, anchor: 'middle' }, t); });
+    svg += drawLines(p.x + p.w / 2, top, p.lines, p.head, SZ, weight, 'middle', t, p.sys);
   };
   trunk.forEach(p => drawNode(p, 600)); extras.forEach(p => drawNode(p, 500));
   // 잎·입력 항목
@@ -522,22 +552,49 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
 // cause (뿌리 → 원인 → 결과)
 // ────────────────────────────────────────────────────────────────────────────
 
-function drawCause(g: FlowGraph, width: number, t: IslandTokens): string {
+export interface CauseExtra { priority: Map<string, { level: string; note: string }> }
+
+/** 우선순위 표의 항목 이름과 원인 라벨을 느슨하게 맞춘다(공백·기호 제거 후 포함 관계 또는 2글자 이상 토큰 2개 공유). */
+function matchPriority(label: string, prio: Map<string, { level: string; note: string }>): { level: string; note: string } | undefined {
+  const norm = (s: string) => s.replace(/[\s·,/()`'"]/g, '').toLowerCase();
+  const nl = norm(label);
+  for (const [item, v] of prio) { const ni = norm(item); if (ni && (nl.includes(ni) || ni.includes(nl))) return v; }
+  const toks = label.split(/[\s·,/()]+/).filter(x => x.length >= 2);
+  let best: { v: { level: string; note: string }; n: number } | null = null;
+  for (const [item, v] of prio) { const n = toks.filter(x => item.includes(x)).length; if (n >= 2 && (!best || n > best.n)) best = { v, n }; }
+  return best?.v;
+}
+
+function drawCause(g: FlowGraph, width: number, t: IslandTokens, extra?: CauseExtra): string {
   const uid = nextUid();
   const d = degrees(g, true);
   const root = Array.from(g.nodes.keys()).find(id => (d.indeg.get(id) || 0) === 0)!;
   const rows = (d.out.get(root) || []).map(e => {
     const cause = g.nodes.get(e.to)!;
     const eff = (d.out.get(e.to) || [])[0];
-    return { cause: cause.label, effect: eff ? g.nodes.get(eff.to)!.label : '', strong: e.thick || eff?.thick === true, dashed: e.dashed };
+    const label = cause.label.replace(/\n/g, ' ');
+    const pr = extra ? matchPriority(label, extra.priority) : undefined;
+    const high = !!pr && /high|높음|상|긴급|critical|1/i.test(pr.level);
+    return { cause: label, effect: eff ? g.nodes.get(eff.to)!.label.replace(/\n/g, ' ') : '', strong: e.thick || eff?.thick === true || high, dashed: e.dashed, level: pr?.level || '', note: pr?.note || '' };
   });
+  // 남은 짝이 하나씩이면 그대로 맺어준다 (예: "SimBD 대표 데이터 선정 로직 미수립" ↔ "SimBD ①②③ flow 일정 확정")
+  if (extra) {
+    const usedNotes = new Set(rows.filter(r => r.level || r.note).map(r => r.note));
+    const leftRows = rows.filter(r => !r.level && !r.note);
+    const leftPrio = [...extra.priority.values()].filter(v => !usedNotes.has(v.note));
+    if (leftRows.length === 1 && leftPrio.length === 1) { const v = leftPrio[0]; leftRows[0].level = v.level; leftRows[0].note = v.note; leftRows[0].strong = leftRows[0].strong || /high|높음|상|긴급|critical|1/i.test(v.level); }
+  }
+  // 우선순위가 있으면 High 먼저
+  if (extra) rows.sort((a, b) => Number(b.strong) - Number(a.strong));
   const W = Math.max(320, width), gap = Math.min(110, Math.max(64, W * 0.15)), colW = (W - gap - 16) / 2, pad = 12, SZ = 12.5;
   const laid = rows.map(r => {
     const cl = wrapBalanced(r.cause, colW - 2 * pad, SZ, 600, t.font), el = wrapBalanced(r.effect || '', colW - 2 * pad, SZ, 600, t.font);
-    return { ...r, cl, el, h: Math.max(cl.length, el.length) * 16 + 20 };
+    const nl = r.note ? wrapBalanced(r.note, colW - 2 * pad, 11, 400, t.font) : [];
+    const hR = el.length * 16 + 20 + (nl.length ? nl.length * 14 + 4 : 0);
+    return { ...r, cl, el, nl, h: Math.max(cl.length * 16 + 20, hR) };
   });
   let y = 12, s = '';
-  const rootLabel = g.nodes.get(root)!.label;
+  const rootLabel = g.nodes.get(root)!.label.replace(/\n/g, ' ');
   s += svgText(8, y, rootLabel, { size: 11, weight: 600, fill: t.text2 }, t);
   s += svgText(8 + colW + gap, y, '결과', { size: 11, weight: 600, fill: t.text2 }, t);
   y += 12;
@@ -548,8 +605,10 @@ function drawCause(g: FlowGraph, width: number, t: IslandTokens): string {
     if (rw.effect) {
       s += svgEl('rect', { x: x2, y, width: colW, height: rw.h, rx: 6, fill: t.surface, stroke: t.border, 'stroke-width': 1 });
       rw.el.forEach((ln, k) => { s += svgText(x2 + colW / 2, y + 18 + k * 16, ln, { size: SZ, weight: 600, fill: t.text, anchor: 'middle' }, t); });
+      rw.nl.forEach((ln, k) => { s += svgText(x2 + colW / 2, y + 18 + rw.el.length * 16 + 4 + k * 14, ln, { size: 11, fill: t.muted, anchor: 'middle' }, t); });
       const ym = y + rw.h / 2;
       s += pathEl(`M${x1 + colW + 2} ${ym} L${x2 - 4} ${ym}`, rw.strong ? 'no' : rw.dashed ? 'ref' : 'soft', t, uid);
+      if (rw.level) s += svgText(x1 + colW + gap / 2, ym - 7, rw.level, { size: 10, weight: 500, fill: rw.strong ? t.red : t.muted, anchor: 'middle', family: t.mono }, t);
     }
     y += rw.h + 10;
   }
@@ -581,11 +640,11 @@ function drawMap(g: FlowGraph, t: IslandTokens): string {
   const colW: number[] = [], colX: number[] = []; let cx = mL;
   columns.forEach((col, ci) => {
     let w = 0;
-    col.forEach(ln => { ln.nodes.forEach(id => { const nd = g.nodes.get(id)!; w = Math.max(w, measureText(nd.label, SZ, hubs.has(id) ? 700 : 500, t.font)); }); w = Math.max(w, measureText(ln.title, 11, 600, t.font) - 10); });
+    col.forEach(ln => { ln.nodes.forEach(id => { const nd = g.nodes.get(id)!; w = Math.max(w, measureText(nd.label.replace(/\n/g, ' '), SZ, hubs.has(id) ? 700 : 500, t.font)); }); w = Math.max(w, measureText(ln.title, 11, 600, t.font) - 10); });
     colW[ci] = Math.ceil(w) + 2 * pad; colX[ci] = cx; cx += colW[ci] + colGap;
     col.forEach(ln => ln.nodes.forEach((id, ni) => {
       const nd = g.nodes.get(id)!;
-      const o: MapNode = { id, label: nd.label, x: colX[ci], y: 0, w: colW[ci], h: baseH, col: ci, lane: ln.id, idx: ni, hub: hubs.has(id), L: [], R: [] };
+      const o: MapNode = { id, label: nd.label.replace(/\n/g, ' '), x: colX[ci], y: 0, w: colW[ci], h: baseH, col: ci, lane: ln.id, idx: ni, hub: hubs.has(id), L: [], R: [] };
       nodes.set(id, o); all.push(o);
     }));
   });
@@ -664,11 +723,11 @@ function drawMap(g: FlowGraph, t: IslandTokens): string {
 // ────────────────────────────────────────────────────────────────────────────
 
 /** 그래프를 섬 SVG 문자열로. width = 컨테이너 내부 폭(px). 지도는 폭과 무관하게 1:1 로 그려 가로 스크롤. */
-export function renderFlowIsland(g: FlowGraph, kind: FlowIslandKind, width: number): string {
+export function renderFlowIsland(g: FlowGraph, kind: FlowIslandKind, width: number, extra?: CauseExtra): string {
   const t = resolveIslandTokens();
   if (kind === 'rail') return drawRail(buildRail(g), width, t);
   if (kind === 'branch') return drawBranch(g, width, t);
-  if (kind === 'cause') return drawCause(g, width, t);
+  if (kind === 'cause') return drawCause(g, width, t, extra);
   return drawMap(g, t);
 }
 

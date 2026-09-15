@@ -13,12 +13,12 @@
  *  - 복사(Outlook)용으로 prepareCloneForCopy 를 제공: 표 섬은 원본 표로 되돌리고,
  *    흐름 섬은 보이는 쪽(SVG 또는 Mermaid)만 남긴다.
  */
-import { parseTable, classifyTable, buildTableIsland, TABLE_KIND_LABEL } from './tableIslands';
+import { parseTable, classifyTable, buildTableIsland, TABLE_KIND_LABEL, setSelfName, parsePriorityTable } from './tableIslands';
 import type { TableIslandKind } from './tableIslands';
 import { parseFlowchart } from './mermaidFlowParser';
 import type { FlowGraph } from './mermaidFlowParser';
 import { classifyFlow, renderFlowIsland, FLOW_KIND_LABEL } from './flowIslands';
-import type { FlowIslandKind } from './flowIslands';
+import type { FlowIslandKind, CauseExtra } from './flowIslands';
 import { invalidateIslandTokens } from './islandTokens';
 
 export type IslandView = 'island' | 'raw';
@@ -55,7 +55,7 @@ function writeView(key: string, v: IslandView | null): void {
 
 const rawTables = new WeakMap<HTMLElement, HTMLTableElement>();
 const islandNodes = new WeakMap<HTMLElement, HTMLElement>();
-const flowGraphs = new WeakMap<HTMLElement, { graph: FlowGraph; kind: FlowIslandKind }>();
+const flowGraphs = new WeakMap<HTMLElement, { graph: FlowGraph; kind: FlowIslandKind; extra?: CauseExtra }>();
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e;
@@ -114,7 +114,7 @@ function drawFlow(wrapper: HTMLElement): void {
   const info = flowGraphs.get(wrapper); const stage = wrapper.querySelector<HTMLElement>('.ww-flow-stage');
   if (!info || !stage) return;
   const width = Math.max(240, (stage.clientWidth || wrapper.clientWidth || 600) - 20);
-  stage.innerHTML = renderFlowIsland(info.graph, info.kind, width);
+  stage.innerHTML = renderFlowIsland(info.graph, info.kind, width, info.extra);
 }
 
 export interface ApplyOptions {
@@ -122,11 +122,14 @@ export interface ApplyOptions {
   docKey: string;
   /** false 면 섬을 만들지 않고 이미 만든 것도 원본으로 되돌린다. */
   enabled?: boolean;
+  /** 본인 이름 (체크리스트에서 본인 묶음을 맨 위로). 없으면 앱 주체자 기본값. */
+  self?: string;
 }
 
 /** 컨테이너에 섬을 적용한다. 반환값은 정리 함수(옵저버 해제). 재호출은 멱등. */
 export function applyIslands(container: HTMLElement, opts: ApplyOptions): () => void {
   const enabled = opts.enabled !== false;
+  if (opts.self) setSelfName(opts.self);
   const def = getIslandsDefault();
   const views = readViews();
   const cleanups: Array<() => void> = [];
@@ -188,7 +191,26 @@ export function applyIslands(container: HTMLElement, opts: ApplyOptions): () => 
     div.parentNode?.insertBefore(wrapper, div);
     raw.appendChild(div);
     wrapper.appendChild(top); wrapper.appendChild(stage); wrapper.appendChild(raw);
-    flowGraphs.set(wrapper, { graph, kind });
+    let extra: CauseExtra | undefined;
+    if (kind === 'cause') {
+      // 시안 2 §04: 원인·결과 트리 바로 뒤(같은 절 안)의 우선순위 표를 읽어 High/Medium 과 판단 근거를 합친다
+      let sib: Element | null = wrapper.nextElementSibling; let heading: Element | null = null;
+      for (let hop = 0; sib && hop < 5; hop++, sib = sib.nextElementSibling) {
+        if (/^H[12]$|^HR$/.test(sib.tagName)) break;
+        if (/^H[34]$/.test(sib.tagName)) { if (/우선순위|중요도|priority|리스크 등급/i.test(sib.textContent || '')) { heading = sib; continue; } break; }
+        const tbl = sib.tagName === 'TABLE' ? (sib as HTMLTableElement) : sib.querySelector<HTMLTableElement>('table');
+        if (!tbl || tbl.closest('.ww-island')) continue; // 이미 다른 섬이 된 표는 건너뛴다(판별 실패로 남은 표는 흡수 가능)
+        const pt = parseTable(tbl); const prio = pt ? parsePriorityTable(pt) : null;
+        if (!prio) continue;
+        extra = { priority: prio };
+        tbl.dataset.wwDone = '1';
+        const holder = sib.tagName === 'TABLE' ? sib : tbl;
+        if (heading) { heading.remove(); raw.appendChild(heading); }
+        holder.remove(); raw.appendChild(holder); // 원본(Mermaid) 보기에서 소제목·표도 함께 보인다
+        break;
+      }
+    }
+    flowGraphs.set(wrapper, { graph, kind, extra });
     const view = views[key] ?? def;
     applyFlowView(wrapper, view);
     if (view === 'island') drawFlow(wrapper);

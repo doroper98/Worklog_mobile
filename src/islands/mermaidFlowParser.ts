@@ -53,12 +53,12 @@ const SKIP_RE = /^(?:classDef|class|style|linkStyle|click|direction)\b/;
 const EDGE_SPLIT_RE = /\s*(<?(?:-{2,}|={2,}|-\.+-?)(?:>|x|o)?)(?:\|([^|]*)\|)?\s*/g;
 
 function cleanLabel(raw: string): string {
+  // <br/> 는 줄바꿈으로 보존한다 (제목 줄 + 설명 줄 구조가 흔하다). 줄 안의 공백만 정리.
   return raw
-    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
     .replace(/&quot;/g, '"')
     .replace(/^"+|"+$/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 
 /** `A["label"]` 류에서 id 와 label 을 분리. label 이 없으면 undefined. */

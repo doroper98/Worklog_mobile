@@ -100,8 +100,14 @@ export function measureText(text: string, size: number, weight: number, family: 
   return measureCtx.measureText(text).width;
 }
 
-/** 폭 제한에 맞춰 줄바꿈. 띄어쓰기 없는 긴 한글은 글자 단위로 자른다. */
+/** 명시적 줄바꿈(\n)이 있는 라벨의 최대 줄 폭 */
+export function labelWidth(text: string, size: number, weight: number, family: string): number {
+  return Math.max(0, ...text.split('\n').map(seg => measureText(seg, size, weight, family)));
+}
+
+/** 폭 제한에 맞춰 줄바꿈. 명시적 줄바꿈(\n)은 그대로 살리고, 띄어쓰기 없는 긴 한글은 글자 단위로 자른다. */
 export function wrapText(text: string, maxW: number, size: number, weight: number, family: string): string[] {
+  if (text.includes('\n')) return text.split('\n').flatMap(seg => wrapText(seg, maxW, size, weight, family));
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let cur = '';
@@ -129,6 +135,7 @@ export function wrapText(text: string, maxW: number, size: number, weight: numbe
 /** 균형 줄바꿈: 같은 줄 수를 유지하는 가장 좁은 폭으로 다시 감싸 줄 길이를 비슷하게 만든다.
  *  (가운데 정렬 노드에서 첫 줄만 길고 둘째 줄이 짧은 모양을 피한다) */
 export function wrapBalanced(text: string, maxW: number, size: number, weight: number, family: string): string[] {
+  if (text.includes('\n')) return text.split('\n').flatMap(seg => wrapBalanced(seg, maxW, size, weight, family));
   const base = wrapText(text, maxW, size, weight, family);
   if (base.length <= 1) return base;
   let best = base;
