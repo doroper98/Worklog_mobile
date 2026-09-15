@@ -20,6 +20,8 @@ import type { FlowGraph } from './mermaidFlowParser';
 import { classifyFlow, renderFlowIsland, FLOW_KIND_LABEL } from './flowIslands';
 import type { FlowIslandKind, CauseExtra } from './flowIslands';
 import { invalidateIslandTokens } from './islandTokens';
+import { parseGantt, renderGantt, parseSequence, buildSequence } from './mermaidOthers';
+import type { GanttModel } from './mermaidOthers';
 
 export type IslandView = 'island' | 'raw';
 
@@ -55,7 +57,8 @@ function writeView(key: string, v: IslandView | null): void {
 
 const rawTables = new WeakMap<HTMLElement, HTMLTableElement>();
 const islandNodes = new WeakMap<HTMLElement, HTMLElement>();
-const flowGraphs = new WeakMap<HTMLElement, { graph: FlowGraph; kind: FlowIslandKind; extra?: CauseExtra }>();
+const flowGraphs = new WeakMap<HTMLElement, { graph?: FlowGraph; kind: FlowIslandKind | 'gantt' | 'sequence'; extra?: CauseExtra; gantt?: GanttModel }>();
+const OTHER_LABEL: Record<'gantt' | 'sequence', string> = { gantt: '일정', sequence: '순서' };
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e;
@@ -114,7 +117,9 @@ function drawFlow(wrapper: HTMLElement): void {
   const info = flowGraphs.get(wrapper); const stage = wrapper.querySelector<HTMLElement>('.ww-flow-stage');
   if (!info || !stage) return;
   const width = Math.max(240, (stage.clientWidth || wrapper.clientWidth || 600) - 20);
-  stage.innerHTML = renderFlowIsland(info.graph, info.kind, width, info.extra);
+  if (info.kind === 'gantt') { if (info.gantt) stage.innerHTML = renderGantt(info.gantt, width); return; }
+  if (info.kind === 'sequence') return; // DOM 은 처음 한 번만 만든다
+  if (info.graph) stage.innerHTML = renderFlowIsland(info.graph, info.kind, width, info.extra);
 }
 
 export interface ApplyOptions {
@@ -182,6 +187,27 @@ export function applyIslands(container: HTMLElement, opts: ApplyOptions): () => 
     if (!enabled) return;
     if (div.closest('.ww-island')) return;
     const src = decodeURIComponent(div.dataset.mermaidSrc || '');
+    const headLine = src.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('%%')) || '';
+    // gantt / sequenceDiagram 은 별도 렌더러
+    if (/^gantt\b/.test(headLine) || /^sequenceDiagram\b/.test(headLine)) {
+      const isGantt = /^gantt\b/.test(headLine);
+      const gantt = isGantt ? parseGantt(src) : null; const seq = isGantt ? null : parseSequence(src);
+      if (!gantt && !seq) return;
+      const okind: 'gantt' | 'sequence' = isGantt ? 'gantt' : 'sequence';
+      const wrapper = el('div', 'ww-island ww-island-flow'); wrapper.dataset.wwKind = okind; wrapper.dataset.wwFlow = '1';
+      const key = `${opts.docKey}#m${i}:${okind}`; wrapper.dataset.wwKey = key;
+      const top = el('div', 'ww-top'); top.appendChild(el('span', 'ww-tag', OTHER_LABEL[okind])); top.appendChild(makeSwitch('Mermaid'));
+      const stage = el('div', okind === 'gantt' ? 'ww-flow-stage' : 'ww-flow-stage ww-seq-stage'); const raw = el('div', 'ww-raw');
+      div.parentNode?.insertBefore(wrapper, div); raw.appendChild(div);
+      wrapper.appendChild(top); wrapper.appendChild(stage); wrapper.appendChild(raw);
+      if (seq) stage.appendChild(buildSequence(seq));
+      flowGraphs.set(wrapper, { kind: okind, gantt: gantt || undefined });
+      const view = views[key] ?? def;
+      applyFlowView(wrapper, view);
+      if (view === 'island' && gantt) drawFlow(wrapper);
+      if (gantt && typeof ResizeObserver !== 'undefined') { let last = 0; const ro = new ResizeObserver(() => { if (wrapper.dataset.wwCurrent !== 'island') return; const w = stage.clientWidth; if (Math.abs(w - last) < 8) return; last = w; drawFlow(wrapper); }); ro.observe(stage); cleanups.push(() => ro.disconnect()); }
+      return;
+    }
     const graph = parseFlowchart(src); if (!graph) return;
     const kind = classifyFlow(graph); if (!kind) return;
     const wrapper = el('div', 'ww-island ww-island-flow'); wrapper.dataset.wwKind = kind; wrapper.dataset.wwFlow = '1';
@@ -214,7 +240,7 @@ export function applyIslands(container: HTMLElement, opts: ApplyOptions): () => 
     const view = views[key] ?? def;
     applyFlowView(wrapper, view);
     if (view === 'island') drawFlow(wrapper);
-    if (kind !== 'map' && typeof ResizeObserver !== 'undefined') {
+    if (kind !== 'map' && kind !== 'graph' && typeof ResizeObserver !== 'undefined') {
       let last = 0;
       const ro = new ResizeObserver(() => {
         if (wrapper.dataset.wwCurrent !== 'island') return;

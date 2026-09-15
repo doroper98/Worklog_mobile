@@ -4,7 +4,7 @@
  * islands.css is a verbatim copy of the desktop file and is never edited, so
  * anything the mobile themes need differently is layered here instead.
  *
- * --yk-primary serves both roles in islands.css: seven `color:` rules (tags,
+ * --yk-primary serves both roles in islands.css: nine `color:` rules (tags,
  * chips, figures, group headings) and six fill/border rules (dots, rating pips,
  * segments). A theme like NOTURNO needs a lighter accent for the small text
  * while fills and thick strokes keep the base accent, so the text rules — and
@@ -17,6 +17,8 @@
 .md-content .ww-tag,
 .md-content .ww-chip-person,
 .md-content .ww-dec-n,
+.md-content .ww-next-no,
+.md-content .ww-compare-h,
 .md-content .ww-rating-avg.ww-top,
 .md-content .ww-ba-val.ww-b,
 .md-content table.ww-matrix td.ww-best,
@@ -57,7 +59,7 @@
  * nothing escapes the island. The geometry itself belongs to the desktop
  * module, which is kept verbatim; this only stops the clip.
  */
-.md-content .ww-flow-stage svg {
+.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage) svg {
   overflow: visible;
 }
 
@@ -72,7 +74,7 @@
  * sub-pixel widths can't introduce a scrollbar. The right side needs less — the
  * rail already reserves a 24px margin there.
  */
-.md-content .ww-flow-stage {
+.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage) {
   padding: 10px 4px 10px 14px;
 }
 
@@ -110,8 +112,15 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-/* A little more room between the label chip and the switch */
-.md-content .ww-top {
+/*
+ * A little more room between the label chip and the switch.
+ *
+ * `ww-top` is two different things in islands.css: the island header row, and
+ * a "this is the highest value" modifier on a rating average and (since
+ * v3.91.0) on a bar inside a track. Match on the switch the header always
+ * carries, so the modifier elements keep their own layout.
+ */
+.md-content .ww-top:has(> .ww-sw) {
   gap: 10px;
   margin-bottom: 8px;
 }

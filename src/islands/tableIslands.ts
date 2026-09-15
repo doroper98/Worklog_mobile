@@ -10,11 +10,12 @@
  *  - React 의존 없음(모바일 공유 가능). 스타일은 styles/islands.css 의 ww-* 클래스.
  */
 
-export type TableIslandKind = 'kv' | 'dec' | 'todo' | 'next' | 'status' | 'rating' | 'ba' | 'issues' | 'tree' | 'map' | 'matrix';
+export type TableIslandKind = 'kv' | 'dec' | 'todo' | 'next' | 'status' | 'rating' | 'ba' | 'issues' | 'tree' | 'map' | 'matrix' | 'bars' | 'compare' | 'records';
 
 export const TABLE_KIND_LABEL: Record<TableIslandKind, string> = {
   kv: '사실 목록', dec: '결정 목록', todo: '체크리스트', next: '세로 궤도', status: '상태 목록',
   rating: '점 격자', ba: '이전·이후', issues: '사안 목록', tree: '묶음 개요', map: '이름 바꿈', matrix: '수치 행렬',
+  bars: '막대', compare: '비교', records: '카드 목록',
 };
 
 export interface ParsedTable { headers: string[]; rows: string[][]; cells: HTMLElement[][] }
@@ -55,39 +56,68 @@ function numericCols(p: ParsedTable): number[] {
   return out;
 }
 
-const find = (hs: string[], re: RegExp): number => hs.findIndex(h => re.test(h));
+
+/** 열의 역할을 머리글 낱말로 알아본다. 정확한 머리글 조합이 아니라 역할 조합으로 판별해 표 대부분을 덮는다.
+ *  (실데이터 1,879개 표 · 고유 머리글 1,193종 조사 결과) */
+export interface ColumnRoles { idx: number; who: number; when: number; status: number; level: number; body: number; title: number }
+export function columnRoles(p: ParsedTable): ColumnRoles {
+  const hs = p.headers;
+  const f = (re: RegExp, skip: number[] = []) => hs.findIndex((h, i) => !skip.includes(i) && re.test(h));
+  const idx = f(/^(#|no\.?|번호|순번|seq|순서)$/i);
+  const who = f(/담당|주체|책임자|책임|owner|발언자|이해관계자|참석자|대상자|수행/, [idx]);
+  const when = f(/기한|일정|시점|시기|due|마감|예상|일자|날짜|시각|완료일|목표일|deadline/i, [idx, who]);
+  const status = f(/상태$|^상태|status|진척|적재/i, [idx, who, when]);
+  const level = f(/우선순위|심각도|영향도|중요도|priority|등급|위험도/i, [idx, who, when, status]);
+  const body = f(/액션|행동|action|내용|후속|작업|항목|결정|이슈|미결|리스크|기능|설명|제목|요지|안건|대안|과제/i, [idx, who, when, status, level]);
+  const title = hs.findIndex((_h, i) => ![idx, who, when, status, level].includes(i));
+  return { idx, who, when, status, level, body: body >= 0 ? body : title, title };
+}
+
+const shortCells = (p: ParsedTable, c: number, max: number) => p.rows.every(r => (r[c] || '').length <= max);
+const avgLen = (p: ParsedTable, c: number) => p.rows.reduce((a, r) => a + (r[c] || '').length, 0) / Math.max(1, p.rows.length);
 
 export function classifyTable(p: ParsedTable): TableIslandKind | null {
   const hs = p.headers, cols = hs.length, n = p.rows.length;
   const nums = numericCols(p);
+  const R = columnRoles(p);
   // 점 격자: 발언자/평가자 + 숫자 열 5개 이상 + 평균
   if (/발언자|평가자|이름|참석자/.test(hs[0]) && nums.length >= 5 && /평균|합계|점수/.test(hs[cols - 1])) return 'rating';
   // 이전·이후: 행 2개, 숫자 열 2~4개, 첫 열은 글자
   if (n === 2 && nums.length >= 2 && nums.length <= 4 && !nums.includes(0)) return 'ba';
   // 수치 행렬: 숫자 열 4개 이상
   if (nums.length >= 4) return 'matrix';
-  // 세로 궤도: 후속/다음 + 담당 + 일정 + 상태
-  if (/후속|다음|단계|작업/.test(hs[0]) && find(hs, /담당/) >= 0 && find(hs, /일정|시점|기한|예상/) >= 0 && find(hs, /상태/) >= 0) return 'next';
-  // 체크리스트: 담당 + 액션 + 기한
-  if (find(hs, /담당/) >= 0 && find(hs, /액션|행동|action|할\s?일|작업|내용/i) >= 0 && find(hs, /기한|일정|due|마감|시점/i) >= 0) return 'todo';
-  // 결정 목록: # + 결정 + 조건
-  if (cols === 3 && /^(#|번호|no\.?|순번)$/i.test(hs[0]) && /결정|내용/.test(hs[1])) return 'dec';
-  if (cols === 3 && /^(구분|분류)$/.test(hs[0]) && /결정/.test(hs[1]) && /조건|범위/.test(hs[2])) return 'dec';
+  // 막대: 숫자 열 하나 + 이름 열 (예: 항목|값, 구분|수량)
+  if (nums.length === 1 && !nums.includes(0) && cols <= 3 && n >= 2 && n <= 16 && shortCells(p, 0, 30)) return 'bars';
   // 이름 바꿈: 구 → 신
   if (cols >= 2 && /^(구|舊|기존|이전|as-?is|현재)/i.test(hs[0]) && /^(신|新|변경|신규|이후|to-?be)/i.test(hs[1])) return 'map';
-  // 사안 목록: 미결/리스크/이슈 + (상태|설명) + (검토|영향|대응)
-  if (cols === 3 && /미결|리스크|이슈|문제|블로커/.test(hs[0]) && (/상태|설명|현황|내용/.test(hs[1]) || /검토|영향|대응|필요|비고/.test(hs[2]))) return 'issues';
-  // 상태 목록: 상태 열 + 값이 상태 낱말
-  const stIdx = find(hs, /^상태$|진행\s?상태|status/i);
-  if (stIdx >= 0 && cols <= 4 && p.rows.every(r => statusKind(r[stIdx] || '') !== null)) return 'status';
+  // 결정 목록: 결정 열이 있으면 (번호 유무·근거/조건 열 유무 무관)
+  if (cols <= 4 && hs.some(h => /결정/.test(h))) return 'dec';
+  // 세로 궤도: 후속·다음·단계·절차 + (담당 또는 일정)
+  if (hs.some((h, i) => i !== R.idx && /후속|다음|단계|절차|스텝|step|프로세스/i.test(h)) && (R.who >= 0 || R.when >= 0) && cols >= 3) return 'next';
+  // 체크리스트: 담당 + (기한 또는 상태) + 본문
+  if (R.who >= 0 && (R.when >= 0 || R.status >= 0) && R.body >= 0 && R.body !== R.who) return 'todo';
+  // 사안 목록: 이슈·미결·리스크·문제 + 열 3개 이상
+  if (cols >= 3 && hs.some((h, i) => i !== R.idx && /이슈|미결|리스크|문제|블로커|장애/.test(h))) return 'issues';
+  // 상태 목록: 상태 열 값이 대부분 상태 낱말
+  if (R.status >= 0 && cols <= 5) {
+    const known = p.rows.filter(r => statusKind(r[R.status] || '') !== null).length;
+    if (known >= Math.max(1, n * 0.6)) return 'status';
+  }
   // 묶음 개요: 앞 열 2개 이상이 연속 반복
   if (cols >= 4 && n >= 6) {
     let rep = 0;
     for (let i = 1; i < n; i++) if (p.rows[i][0] === p.rows[i - 1][0] && p.rows[i][1] === p.rows[i - 1][1]) rep++;
     if (rep >= (n - 1) * 0.6) return 'tree';
   }
-  // 사실 목록: 2열 + 항목/구분 류 머리글
-  if (cols === 2 && /^(항목|구분|설정|지표|필드|속성|키|key|영역|분류|대상|실행 계획|화면 영역)$/i.test(hs[0]) && n <= 20) return 'kv';
+  // 사실 목록: 2열이고 첫 열이 짧은 라벨
+  if (cols === 2 && n <= 24 && avgLen(p, 0) <= 14) return 'kv';
+  // 비교: 첫 열이 기준(구분·항목)이고 나머지 열이 선택지(역할 열 없음), 값이 짧다
+  if (cols >= 3 && cols <= 5 && R.who < 0 && R.when < 0 && R.status < 0 && R.level < 0 && /구분|항목|기준|비교|관점|criteria|측면/i.test(hs[0]) && hs.slice(1).every(h => h.length >= 3) && avgLen(p, 1) <= 40 && n <= 12) return 'compare';
+  // 카드 목록: 열 3개 이상, 글자 위주 (짧은 값만 빽빽한 표는 표로 둔다)
+  if (cols >= 3 && n <= 40) {
+    const dense = cols >= 5 && p.rows.every(r => r.every(v => v.length <= 6));
+    if (!dense) return 'records';
+  }
   return null;
 }
 
@@ -103,12 +133,18 @@ export function parsePriorityTable(p: ParsedTable): Map<string, { level: string;
   return m.size ? m : null;
 }
 
+/** 본인 이름: applyIslands 가 넘겨준다(없으면 앱 주체자 기본값). */
+let SELF_NAME = '서영균';
+export function setSelfName(name: string): void { if (name) SELF_NAME = name; }
+
 export type StatusKind = 'done' | 'run' | 'hold' | 'need' | 'stop';
 
 export function statusKind(s: string): StatusKind | null {
   const v = s.replace(EMOJI_RE, '').trim();
   if (!v) return null;
-  if (/완료|done|closed|해결|반영됨|회신됨/i.test(v)) return 'done';
+  // '미착수·미완료' 처럼 부정 접두가 붙은 것은 먼저 걸러 '착수·완료' 로 오판하지 않게 한다
+  if (/^미\s*(착수|진행|완료|반영|적재|연결|수령|확정|처리|해결|검토|결정|응답|회신)|not started|미정/i.test(v)) return 'need';
+  if (/완료|done|closed|해결|반영됨|회신됨|적재됨|연결됨/i.test(v)) return 'done';
   if (/진행|예정|in.?progress|ongoing|요청됨|착수|수행 중/i.test(v)) return 'run';
   if (/보류|장기|대기|유보|hold|pending|지연/i.test(v)) return 'hold';
   if (/검토|확인|미정|필요|todo|open|미확인/i.test(v)) return 'need';
@@ -193,36 +229,39 @@ function buildKv(p: ParsedTable): HTMLElement {
 }
 
 function buildDec(p: ParsedTable): HTMLElement {
+  const hs = p.headers; const R = columnRoles(p);
+  const iDec = hs.findIndex(h => /결정/.test(h)); const iNum = R.idx;
+  const noteCols = hs.map((_h, i) => i).filter(i => i !== iDec && i !== iNum);
   const frag = h('div');
-  frag.appendChild(ghost('ww-head-dec', p.headers[0], ghostCell(p.headers[1], p.headers[2])));
+  frag.appendChild(ghost('ww-head-dec', iNum >= 0 ? hs[iNum] : '#', ghostCell(hs[iDec], noteCols.map(i => hs[i]).join(' · ') || undefined)));
   const ol = h('ol', 'ww-dec');
   p.rows.forEach((r, i) => {
     const li = h('li'); const box = h('div');
-    li.appendChild(h('span', 'ww-dec-n', r[0]));
-    box.appendChild(cellInto(h('div', 'ww-dec-d'), p.cells[i][1]));
-    if ((r[2] || '').trim()) box.appendChild(cellInto(h('div', 'ww-dec-c'), p.cells[i][2]));
+    li.appendChild(h('span', 'ww-dec-n', iNum >= 0 ? r[iNum] : String(i + 1)));
+    box.appendChild(cellInto(h('div', 'ww-dec-d'), p.cells[i][iDec]));
+    for (const c of noteCols) {
+      if (!(r[c] || '').trim()) continue;
+      const note = cellInto(h('div', 'ww-dec-c'), p.cells[i][c]);
+      note.dataset.label = hs[c].replace(/\s.*$/, '').slice(0, 4);
+      box.appendChild(note);
+    }
     li.appendChild(box); ol.appendChild(li);
   });
   frag.appendChild(ol);
   return frag;
 }
 
-/** 본인 이름: applyIslands 가 넘겨준다(없으면 앱 주체자 기본값). */
-let SELF_NAME = '서영균';
-export function setSelfName(name: string): void { if (name) SELF_NAME = name; }
-
 function buildTodo(p: ParsedTable): HTMLElement {
-  const hs = p.headers;
-  const iWho = find(hs, /담당/), iAct = find(hs, /액션|행동|action|할\s?일|작업|내용/i), iDue = find(hs, /기한|일정|due|마감|시점/i);
-  const iMemo = hs.findIndex((x, i) => i !== iWho && i !== iAct && i !== iDue && !/상태/.test(x) && !/^(#|no\.?|번호|순번)$/i.test(x));
-  const iSt = find(hs, /상태/);
+  const hs = p.headers; const R = columnRoles(p);
+  const iWho = R.who, iAct = R.body, iDue = R.when, iSt = R.status;
+  const memoCols = hs.map((_h, i) => i).filter(i => ![iWho, iAct, iDue, iSt, R.idx].includes(i));
   const frag = h('div');
-  const row = h('span', 'ww-head-row'); row.appendChild(h('i', 'ww-box')); row.appendChild(ghostCell(hs[iAct], iMemo >= 0 ? hs[iMemo] : undefined)); row.appendChild(h('span', 'ww-chip', hs[iDue]));
+  const row = h('span', 'ww-head-row'); row.appendChild(h('i', 'ww-box')); row.appendChild(ghostCell(hs[iAct], memoCols.map(i => hs[i]).join(' · ') || undefined));
+  const tail = h('span', 'ww-head-tail'); if (iSt >= 0) tail.appendChild(h('span', 'ww-st ww-st-need', hs[iSt])); if (iDue >= 0) tail.appendChild(h('span', 'ww-chip', hs[iDue])); row.appendChild(tail);
   frag.appendChild(ghost('ww-head-todo', `${hs[iWho]} (묶음)`, row));
   const wrap = h('div', 'ww-todo');
   const groups = new Map<string, number[]>();
-  p.rows.forEach((r, i) => { const k = r[iWho] || '(담당 미정)'; if (!groups.has(k)) groups.set(k, []); groups.get(k)!.push(i); });
-  // 본인이 주체인 묶음("서영균", "서영균 → …")을 맨 위로
+  p.rows.forEach((r, i) => { const k = (r[iWho] || '').trim() || '(담당 미정)'; if (!groups.has(k)) groups.set(k, []); groups.get(k)!.push(i); });
   const isSelf = (who: string) => who.split(/\s*(?:→|->)\s*/)[0].split(/[,·/]/)[0].replace(HONORIFIC_RE, '').trim() === SELF_NAME;
   const ordered = [...groups.entries()].sort((a, b) => Number(isSelf(b[0])) - Number(isSelf(a[0])));
   for (const [who, idxs] of ordered) {
@@ -233,12 +272,12 @@ function buildTodo(p: ParsedTable): HTMLElement {
       const r = p.rows[i], li = h('li');
       li.appendChild(h('span', 'ww-box'));
       const body = h('div'); cellInto(body, p.cells[i][iAct]);
-      if (iMemo >= 0 && (r[iMemo] || '').trim()) body.appendChild(cellInto(h('span', 'ww-memo'), p.cells[i][iMemo]));
+      for (const c of memoCols) if ((r[c] || '').trim()) { const m = cellInto(h('span', 'ww-memo'), p.cells[i][c]); if (memoCols.length > 1) m.dataset.label = hs[c]; body.appendChild(m); }
       li.appendChild(body);
-      const tail = h('span', 'ww-todo-tail');
-      if (iSt >= 0 && r[iSt]) tail.appendChild(statusToken(r[iSt]));
-      tail.appendChild(dateChip(r[iDue] || ''));
-      li.appendChild(tail); ul.appendChild(li);
+      const tl = h('span', 'ww-todo-tail');
+      if (iSt >= 0 && r[iSt]) tl.appendChild(statusToken(r[iSt]));
+      if (iDue >= 0) tl.appendChild(dateChip(r[iDue] || ''));
+      li.appendChild(tl); ul.appendChild(li);
     }
     g.appendChild(ul); wrap.appendChild(g);
   }
@@ -247,19 +286,24 @@ function buildTodo(p: ParsedTable): HTMLElement {
 }
 
 function buildNext(p: ParsedTable): HTMLElement {
-  const hs = p.headers;
-  const iWho = find(hs, /담당/), iWhen = find(hs, /일정|시점|기한|예상/), iSt = find(hs, /상태/);
+  const hs = p.headers; const R = columnRoles(p);
+  const iWho = R.who, iWhen = R.when, iSt = R.status;
+  const iTitle = hs.findIndex((h, i) => i !== R.idx && /후속|다음|단계|절차|스텝|step|프로세스|내용|작업|항목/i.test(h) && ![iWho, iWhen, iSt].includes(i));
+  const iT = iTitle >= 0 ? iTitle : R.body;
+  const stepNo = R.idx >= 0 ? R.idx : (hs.findIndex(h => /^단계$/.test(h)) >= 0 && numericCols(p).includes(hs.findIndex(h => /^단계$/.test(h))) ? hs.findIndex(h => /^단계$/.test(h)) : -1);
+  const others = hs.map((_h, i) => i).filter(i => ![iT, iWho, iWhen, iSt, stepNo].includes(i));
   const frag = h('div');
-  const m = h('span', 'ww-head-m'); m.appendChild(h('span', 'ww-chip', hs[iWho])); m.appendChild(h('span', 'ww-chip', hs[iWhen])); m.appendChild(h('span', 'ww-st ww-st-need', hs[iSt]));
-  frag.appendChild(ghost('ww-head-next', `${hs[0]} (순서대로)`, m));
+  const m = h('span', 'ww-head-m'); if (iWho >= 0) m.appendChild(h('span', 'ww-chip', hs[iWho])); if (iWhen >= 0) m.appendChild(h('span', 'ww-chip', hs[iWhen])); if (iSt >= 0) m.appendChild(h('span', 'ww-st ww-st-need', hs[iSt]));
+  frag.appendChild(ghost('ww-head-next', `${hs[iT]} (순서대로)`, m));
   const ol = h('ol', 'ww-next');
   p.rows.forEach((r, i) => {
-    const li = h('li', `ww-next-${statusKind(r[iSt] || '') || 'need'}`);
-    li.appendChild(cellInto(h('div', 'ww-next-t'), p.cells[i][0]));
+    const li = h('li', `ww-next-${iSt >= 0 ? (statusKind(r[iSt] || '') || 'need') : 'plain'}`);
+    const tt = h('div', 'ww-next-t'); if (stepNo >= 0 && r[stepNo]) tt.appendChild(h('span', 'ww-next-no', r[stepNo])); const tx = h('span'); cellInto(tx, p.cells[i][iT]); tt.appendChild(tx); li.appendChild(tt);
     const meta = h('div', 'ww-next-m');
-    meta.appendChild(personChips(r[iWho] || ''));
-    meta.appendChild(dateChip(r[iWhen] || ''));
-    if (r[iSt]) meta.appendChild(statusToken(r[iSt]));
+    if (iWho >= 0 && (r[iWho] || '').trim()) { const w = r[iWho]; if (statusKind(w) === 'done' && w.length <= 3) meta.appendChild(statusToken(w)); else meta.appendChild(personChips(w)); }
+    if (iWhen >= 0 && (r[iWhen] || '').trim() && !/^[-—]$/.test(r[iWhen].trim())) meta.appendChild(dateChip(r[iWhen]));
+    if (iSt >= 0 && r[iSt]) meta.appendChild(statusToken(r[iSt]));
+    for (const c of others) if ((r[c] || '').trim()) meta.appendChild(cellInto(h('span', 'ww-memo'), p.cells[i][c]));
     li.appendChild(meta); ol.appendChild(li);
   });
   frag.appendChild(ol);
@@ -267,19 +311,20 @@ function buildNext(p: ParsedTable): HTMLElement {
 }
 
 function buildStatus(p: ParsedTable): HTMLElement {
-  const hs = p.headers;
-  const iSt = find(hs, /^상태$|진행\s?상태|status/i);
-  const iMemo = hs.findIndex((_unused, i) => i !== 0 && i !== iSt);
+  const hs = p.headers; const R = columnRoles(p);
+  const iSt = R.status;
+  const iT = hs.findIndex((_h, i) => i !== iSt && i !== R.idx);
+  const memoCols = hs.map((_h, i) => i).filter(i => i !== iSt && i !== iT && i !== R.idx);
   const frag = h('div');
   const lg = h('span', 'ww-head-lg');
   (['done', 'run', 'hold', 'need', 'stop'] as StatusKind[]).forEach(k => lg.appendChild(h('span', `ww-st ww-st-${k}`, { done: '완료', run: '진행 중', hold: '보류·대기', need: '검토·미정', stop: '중단·결정 필요' }[k])));
-  frag.appendChild(ghost('ww-head-status', ghostCell(hs[0], iMemo >= 0 ? hs[iMemo] : undefined), hs[iSt], lg));
+  frag.appendChild(ghost('ww-head-status', ghostCell(hs[iT], memoCols.map(i => hs[i]).join(' · ') || undefined), hs[iSt], lg));
   const ul = h('ul', 'ww-status');
   p.rows.forEach((r, i) => {
     const li = h('li');
-    li.appendChild(cellInto(h('span'), p.cells[i][0]));
+    li.appendChild(cellInto(h('span'), p.cells[i][iT]));
     li.appendChild(statusToken(r[iSt] || ''));
-    if (iMemo >= 0 && (r[iMemo] || '').replace(/[—-]/g, '').trim()) li.appendChild(cellInto(h('span', 'ww-memo'), p.cells[i][iMemo]));
+    for (const c of memoCols) if ((r[c] || '').replace(/[—-]/g, '').trim()) { const m = cellInto(h('span', 'ww-memo'), p.cells[i][c]); if (memoCols.length > 1) m.dataset.label = hs[c]; li.appendChild(m); }
     ul.appendChild(li);
   });
   frag.appendChild(ul);
@@ -349,15 +394,24 @@ function buildBa(p: ParsedTable): HTMLElement {
 }
 
 function buildIssues(p: ParsedTable): HTMLElement {
-  const hs = p.headers;
+  const hs = p.headers; const R = columnRoles(p);
+  const iT = hs.findIndex((h, i) => i !== R.idx && /이슈|미결|리스크|문제|블로커|장애|항목|내용/.test(h));
+  const iTitle = iT >= 0 ? iT : hs.findIndex((_h, i) => i !== R.idx);
+  const iLv = R.level;
+  const rest = hs.map((_h, i) => i).filter(i => ![iTitle, iLv, R.idx].includes(i));
   const frag = h('div');
-  frag.appendChild(ghost('ww-head-issues', ghostCell(hs[0], `${hs[1]} · ${hs[2]}`)));
+  frag.appendChild(ghost('ww-head-issues', ghostCell(hs[iTitle], [iLv >= 0 ? hs[iLv] : '', ...rest.map(i => hs[i])].filter(Boolean).join(' · '))));
   const ul = h('ul', 'ww-issues');
   const lab = (x: string) => x.replace(/^(추가|기타|주요)\s+/, '').replace(/\s.*$/, '').slice(0, 4);
+  const lvClass = (v: string) => /high|높음|상|긴급|critical|심각|1/i.test(v) ? 'ww-lv-high' : /low|낮음|하|경미|3/i.test(v) ? 'ww-lv-low' : 'ww-lv-mid';
   p.rows.forEach((r, i) => {
     const li = h('li');
-    li.appendChild(cellInto(h('div', 'ww-issues-t'), p.cells[i][0]));
-    for (const c of [1, 2]) {
+    const tt = h('div', 'ww-issues-t');
+    if (R.idx >= 0 && r[R.idx]) tt.appendChild(h('span', 'ww-dec-n', r[R.idx]));
+    const tx = h('span'); cellInto(tx, p.cells[i][iTitle]); tt.appendChild(tx);
+    if (iLv >= 0 && (r[iLv] || '').trim()) { const lv = h('span', `ww-chip ww-lv ${lvClass(r[iLv])}`, r[iLv]); tt.appendChild(lv); li.classList.add(lvClass(r[iLv])); }
+    li.appendChild(tt);
+    for (const c of rest) {
       if (!(r[c] || '').trim()) continue;
       const row = h('div', 'ww-issues-row'); row.appendChild(h('b', undefined, lab(hs[c]))); row.appendChild(cellInto(h('span'), p.cells[i][c])); li.appendChild(row);
     }
@@ -450,6 +504,78 @@ function decorateMatrix(table: HTMLTableElement, p: ParsedTable): void {
   }
 }
 
+/** 막대: 이름 + 숫자 하나. 최댓값은 강조색, 나머지는 잉크 농도 사다리(참고 시트 6.2). */
+function buildBars(p: ParsedTable): HTMLElement {
+  const nums = numericCols(p); const iV = nums[0];
+  const iName = p.headers.findIndex((_h, i) => i !== iV);
+  const memoCols = p.headers.map((_h, i) => i).filter(i => i !== iV && i !== iName);
+  const vals = p.rows.map(r => parseFloat((r[iV] || '').replace(/[^\d.\-]/g, '')));
+  const max = Math.max(...vals.filter(v => isFinite(v)), 0) || 1;
+  const frag = h('div');
+  frag.appendChild(ghost('ww-head-bars', p.headers[iName], p.headers[iV] + (memoCols.length ? ` · ${memoCols.map(i => p.headers[i]).join(' · ')}` : '')));
+  const list = h('div', 'ww-bars');
+  const top = Math.max(...vals.filter(v => isFinite(v)));
+  p.rows.forEach((r, i) => {
+    const v = vals[i]; const row = h('div', 'ww-bars-row');
+    row.appendChild(cellInto(h('div', 'ww-bars-lb'), p.cells[i][iName]));
+    const trk = h('div', 'ww-bars-trk'); const bar = h('i', v === top ? 'ww-top' : undefined); bar.style.width = `${isFinite(v) ? Math.max(2, v / max * 100) : 0}%`; trk.appendChild(bar);
+    row.appendChild(trk);
+    row.appendChild(h('div', 'ww-bars-v', r[iV] || ''));
+    if (memoCols.length) { const m = h('div', 'ww-bars-memo'); m.textContent = memoCols.map(c => r[c]).filter(Boolean).join(' · '); row.appendChild(m); }
+    list.appendChild(row);
+  });
+  frag.appendChild(list);
+  return frag;
+}
+
+/** 비교: 첫 열이 기준, 나머지 열이 선택지. 선택지마다 카드로. */
+function buildCompare(p: ParsedTable): HTMLElement {
+  const hs = p.headers;
+  const frag = h('div');
+  frag.appendChild(ghost('ww-head-compare', ghostCell(`${hs[0]}별로 ${hs.length - 1}가지를 나란히`, hs.slice(1).join(' · '))));
+  const grid = h('div', 'ww-compare');
+  for (let c = 1; c < hs.length; c++) {
+    const card = h('div', 'ww-compare-card');
+    card.appendChild(h('div', 'ww-compare-h', hs[c]));
+    const dl = h('dl');
+    p.rows.forEach((r, i) => { dl.appendChild(h('dt', undefined, r[0])); dl.appendChild(cellInto(h('dd'), p.cells[i][c])); });
+    card.appendChild(dl); grid.appendChild(card);
+  }
+  frag.appendChild(grid);
+  return frag;
+}
+
+/** 카드 목록: 행마다 카드. 첫 글자 열이 제목, 나머지는 라벨 붙은 줄. 담당·기한·상태는 칩으로. */
+function buildRecords(p: ParsedTable): HTMLElement {
+  const hs = p.headers; const R = columnRoles(p);
+  const iTitle = hs.findIndex((_h, i) => i !== R.idx && i !== R.who && i !== R.when && i !== R.status && i !== R.level);
+  const rest = hs.map((_h, i) => i).filter(i => ![iTitle, R.idx].includes(i));
+  const frag = h('div');
+  frag.appendChild(ghost('ww-head-records', ghostCell(hs[iTitle], rest.map(i => hs[i]).join(' · ') || undefined)));
+  const ul = h('ul', 'ww-records');
+  p.rows.forEach((r, i) => {
+    const li = h('li');
+    const tt = h('div', 'ww-records-t');
+    if (R.idx >= 0 && r[R.idx]) tt.appendChild(h('span', 'ww-dec-n', r[R.idx]));
+    const tx = h('span'); cellInto(tx, p.cells[i][iTitle]); tt.appendChild(tx);
+    li.appendChild(tt);
+    const chips = h('div', 'ww-records-chips');
+    if (R.who >= 0 && (r[R.who] || '').trim()) chips.appendChild(personChips(r[R.who]));
+    if (R.when >= 0 && (r[R.when] || '').trim()) chips.appendChild(dateChip(r[R.when]));
+    if (R.status >= 0 && (r[R.status] || '').trim()) chips.appendChild(statusToken(r[R.status]));
+    if (R.level >= 0 && (r[R.level] || '').trim()) chips.appendChild(h('span', 'ww-chip ww-lv', r[R.level]));
+    if (chips.childNodes.length) li.appendChild(chips);
+    for (const c of rest) {
+      if ([R.who, R.when, R.status, R.level].includes(c)) continue;
+      if (!(r[c] || '').replace(/[—-]/g, '').trim()) continue;
+      const row = h('div', 'ww-records-row'); row.appendChild(h('b', undefined, hs[c].slice(0, 6))); row.appendChild(cellInto(h('span'), p.cells[i][c])); li.appendChild(row);
+    }
+    ul.appendChild(li);
+  });
+  frag.appendChild(ul);
+  return frag;
+}
+
 /** 표 → 섬 DOM. matrix 는 표 자체를 꾸미고 null 을 돌려준다(교체 없음). */
 export function buildTableIsland(table: HTMLTableElement, kind: TableIslandKind, p: ParsedTable): HTMLElement | null {
   switch (kind) {
@@ -464,5 +590,8 @@ export function buildTableIsland(table: HTMLTableElement, kind: TableIslandKind,
     case 'tree': return buildTree(p);
     case 'map': return buildMap(p);
     case 'matrix': decorateMatrix(table, p); return null;
+    case 'bars': return buildBars(p);
+    case 'compare': return buildCompare(p);
+    case 'records': return buildRecords(p);
   }
 }

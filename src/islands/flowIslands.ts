@@ -12,7 +12,7 @@
  *  선 어휘(참고 시트): 실선 1.4 = 흐름 · 액센트 2.2 = 축 · 5,3 굵게 = 위험/우회 ·
  *  2,3 = 되돌림 · 1,3 = 참조. 색은 앱 --yk-* 토큰.
  */
-import type { FlowGraph, FlowEdge } from './mermaidFlowParser';
+import type { FlowGraph, FlowEdge, FlowSubgraph } from './mermaidFlowParser';
 import { resolveIslandTokens, measureText, labelWidth, wrapBalanced, svgEl, svgText } from './islandTokens';
 
 /** 라벨을 줄로 펼친다.
@@ -44,7 +44,7 @@ function drawLines(x: number, top: number, lines: string[], head: number, size: 
 }
 import type { IslandTokens } from './islandTokens';
 
-export type FlowIslandKind = 'rail' | 'branch' | 'cause' | 'map';
+export type FlowIslandKind = 'rail' | 'branch' | 'cause' | 'map' | 'graph';
 
 type StrokeKind = 'flow' | 'soft' | 'axis' | 'strong' | 'no' | 'back' | 'ref';
 
@@ -135,7 +135,7 @@ function longestPath(g: FlowGraph, d: Degree): string[] {
   return best;
 }
 
-export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
+function classifyCore(g: FlowGraph): FlowIslandKind | null {
   const n = g.nodes.size;
   if (n < 2) return null;
   const inSg = Array.from(g.nodes.values()).filter(x => x.subgraph).length;
@@ -162,7 +162,7 @@ export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
   // rail: 실선 기준 긴 경로 위에 대부분의 노드가 있고, 나머지는 경로 노드의 자식(분기)
   if (n > 24) return null;
   const ds = degrees(g, false);
-  const path = longestPath(g, ds);
+  const path = longestPath(g, d); // 점선 사슬(G -.-> H -.-> I)도 본선이 될 수 있다
   if (path.length < Math.max(3, Math.ceil(n * 0.5))) return null;
   const onPath = new Set(path);
   let plainRail = n <= 14 && path.length >= Math.ceil(n * 0.6) && n - path.length <= 4;
@@ -186,6 +186,31 @@ export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
   return 'branch';
 }
 
+/** 판별. 어떤 모양에도 안 맞으면 관계 그래프(층별 배치)로라도 그린다. 2~40 노드. */
+export function classifyFlow(g: FlowGraph): FlowIslandKind | null {
+  const core = classifyCore(g);
+  if (core) return core;
+  const n = g.nodes.size;
+  if (n >= 2 && n <= 40 && g.edges.length > 0) return 'graph';
+  return null;
+}
+
+/** 층(rank): 출발 노드에서의 최장 거리. 되돌림(뒤로 가는 엣지)은 무시한다. */
+function buildRanks(g: FlowGraph): FlowSubgraph[] {
+  const ids = Array.from(g.nodes.keys());
+  const rank = new Map<string, number>(); ids.forEach(id => rank.set(id, 0));
+  const edges = g.edges.filter(e => g.nodes.has(e.from) && g.nodes.has(e.to) && e.from !== e.to);
+  for (let it = 0; it < ids.length + 1; it++) {
+    let changed = false;
+    for (const e of edges) { const r = rank.get(e.from)! + 1; if (r > rank.get(e.to)! && r <= ids.length) { rank.set(e.to, r); changed = true; } }
+    if (!changed) break;
+  }
+  const maxR = Math.max(...rank.values());
+  const lanes: FlowSubgraph[] = [];
+  for (let r = 0; r <= maxR; r++) { const nodes = ids.filter(id => rank.get(id) === r).sort((a, b) => g.nodes.get(a)!.order - g.nodes.get(b)!.order); if (nodes.length) lanes.push({ id: `rank${r}`, title: '', nodes }); }
+  return lanes;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // rail
 // ────────────────────────────────────────────────────────────────────────────
@@ -196,7 +221,7 @@ interface RailStep { label: string; branch?: BranchItem[] }
 function buildRail(g: FlowGraph): RailStep[] {
   const ds = degrees(g, false);
   const dAll = degrees(g, true);
-  const path = longestPath(g, ds);
+  const path = longestPath(g, dAll);
   const onPath = new Set(path);
   const steps: RailStep[] = [];
   const skip = new Set<string>();
@@ -301,20 +326,20 @@ function drawRail(steps: RailStep[], width: number, t: IslandTokens): string {
 // ────────────────────────────────────────────────────────────────────────────
 
 interface Chain { tag: string; nodes: string[]; rejoin: number | null; dashed: boolean }
-interface TrunkStep { id: string; tag?: string; chains: Chain[]; loops: Array<{ to: number; label: string }>; joins: Array<{ label: string; tag: string }>; leaves: BranchItem[] }
+interface TrunkStep { id: string; tags: string[]; dashed: boolean; chains: Chain[]; loops: Array<{ to: number; label: string }>; joins: Array<{ label: string; tag: string }>; leaves: BranchItem[] }
 
 function buildBranch(g: FlowGraph): TrunkStep[] {
-  const ds = degrees(g, false), dAll = degrees(g, true);
-  const path = longestPath(g, ds);
+  const dAll = degrees(g, true);
+  const path = longestPath(g, dAll);
   const idx = new Map<string, number>(); path.forEach((id, i) => idx.set(id, i));
   const used = new Set<string>(path);
-  const steps: TrunkStep[] = path.map(id => ({ id, chains: [], loops: [], joins: [], leaves: [] }));
+  const steps: TrunkStep[] = path.map(id => ({ id, tags: [], dashed: false, chains: [], loops: [], joins: [], leaves: [] }));
   path.forEach((id, i) => {
     const st = steps[i];
     for (const e of dAll.out.get(id) || []) {
       const ti = idx.get(e.to);
       if (ti !== undefined) {
-        if (ti === i + 1 && !e.dashed) { if (e.label) st.tag = e.label; continue; }
+        if (ti === i + 1) { if (e.label) st.tags.push(e.label); if (e.dashed) st.dashed = true; continue; }
         if (ti <= i) { st.loops.push({ to: ti, label: e.label || '' }); continue; }
         continue; // 앞으로 건너뛰는 경로 내 엣지는 생략(본선 화살표가 대신한다)
       }
@@ -323,7 +348,7 @@ function buildBranch(g: FlowGraph): TrunkStep[] {
       while (cur && !idx.has(cur) && guard++ < 32) {
         if (used.has(cur)) break;
         nodes.push(cur); used.add(cur);
-        const nx = (ds.out.get(cur) || [])[0];
+        const nx = (dAll.out.get(cur) || [])[0];
         if (!nx) break;
         if (idx.has(nx.to)) { rejoin = idx.get(nx.to)!; break; }
         cur = nx.to;
@@ -387,8 +412,9 @@ function drawBranchNarrow(g: FlowGraph, width: number, t: IslandTokens): string 
   for (let i = 0; i < trunk.length - 1; i++) {
     const a = trunk[i], b = trunk[i + 1];
     const busy = steps[i].chains.length > 0;
-    if (busy) { const lx = mL + 10; svg += pathEl(`M${lx} ${a.y + a.h + 1} L${lx} ${b.y - 3}`, 'flow', t, uid); if (steps[i].tag) svg += svgText(lx + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t); }
-    else { const xm = a.x + a.w / 2; svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, 'flow', t, uid); if (steps[i].tag) svg += svgText(xm + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t); }
+    const kind: StrokeKind = steps[i].dashed ? 'ref' : 'flow'; const tag = steps[i].tags.join(' · ');
+    if (busy) { const lx = mL + 10; svg += pathEl(`M${lx} ${a.y + a.h + 1} L${lx} ${b.y - 3}`, kind, t, uid); if (tag) svg += svgText(lx + 8, b.y - 7, tag, { size: 10.5, weight: 600, fill: t.green }, t); }
+    else { const xm = a.x + a.w / 2; svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, kind, t, uid); if (tag) svg += svgText(xm + 8, b.y - 7, tag, { size: 10.5, weight: 600, fill: t.green }, t); }
   }
   // 가지 연결선
   for (const col of chainCols) {
@@ -488,8 +514,8 @@ function drawBranch(g: FlowGraph, width: number, t: IslandTokens): string {
   // 본선 화살표 + 태그
   for (let i = 0; i < trunk.length - 1; i++) {
     const a = trunk[i], b = trunk[i + 1], xm = a.x + a.w / 2;
-    svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, 'flow', t, uid);
-    if (steps[i].tag) svg += svgText(xm + 8, b.y - 7, steps[i].tag!, { size: 10.5, weight: 600, fill: t.green }, t);
+    svg += pathEl(`M${xm} ${a.y + a.h + 1} L${xm} ${b.y - 3}`, steps[i].dashed ? 'ref' : 'flow', t, uid);
+    if (steps[i].tags.length) svg += svgText(xm + 8, b.y - 7, steps[i].tags.join(' · '), { size: 10.5, weight: 600, fill: t.green }, t);
   }
   // 가지 연결선
   for (const row of chainRows) {
@@ -623,13 +649,13 @@ interface MapNode { id: string; label: string; x: number; y: number; w: number; 
 interface MapEdge { from: string; to: string; kind: StrokeKind; bi: boolean; a: MapNode; b: MapNode; type: 'fwd' | 'long' | 'back' | 'adj' | 'side'; side?: 'L' | 'R'; ay?: number; by?: number; slotX?: number }
 interface PortRef { e: MapEdge; other: MapNode }
 
-function drawMap(g: FlowGraph, t: IslandTokens): string {
+function drawMap(g: FlowGraph, t: IslandTokens, opts?: { lanes?: FlowSubgraph[]; onePerCol?: boolean }): string {
   const uid = nextUid();
   const SZ = 12, rowGap = 6, baseH = 26, laneGap = 26, colGap = 100, mL = 48, mR = 16, mT = 10, pad = 10, SLOT = 6, PORT = 6;
   // 레인 → 열 배치: 4열까지는 하나씩, 그 이상은 앞 둘은 단독·나머지는 둘씩 쌓기
-  const lanes = g.subgraphs.filter(sg => sg.nodes.length > 0);
+  const lanes = (opts?.lanes ?? g.subgraphs).filter(sg => sg.nodes.length > 0);
   const columns: typeof lanes[] = [];
-  if (lanes.length <= 4) lanes.forEach(l => columns.push([l]));
+  if (opts?.onePerCol || lanes.length <= 4) lanes.forEach(l => columns.push([l]));
   else { columns.push([lanes[0]], [lanes[1]]); for (let i = 2; i < lanes.length; i += 2) columns.push(lanes.slice(i, i + 2)); }
   // 허브: 차수 상위 2개(차수 5 이상)
   const deg = new Map<string, number>();
@@ -676,7 +702,7 @@ function drawMap(g: FlowGraph, t: IslandTokens): string {
   columns.forEach((col, ci) => {
     let y = mT;
     col.forEach(ln => {
-      laneS += svgText(colX[ci], y + 11, ln.title, { size: 11, weight: 600, fill: t.text2 }, t); y += 22;
+      if (ln.title) { laneS += svgText(colX[ci], y + 11, ln.title, { size: 11, weight: 600, fill: t.text2 }, t); y += 22; }
       ln.nodes.forEach(id => { const o = nodes.get(id)!; o.y = y; y += o.h + rowGap; });
       y += laneGap;
     });
@@ -728,8 +754,9 @@ export function renderFlowIsland(g: FlowGraph, kind: FlowIslandKind, width: numb
   if (kind === 'rail') return drawRail(buildRail(g), width, t);
   if (kind === 'branch') return drawBranch(g, width, t);
   if (kind === 'cause') return drawCause(g, width, t, extra);
+  if (kind === 'graph') return drawMap(g, t, { lanes: buildRanks(g), onePerCol: true });
   return drawMap(g, t);
 }
 
-export const FLOW_KIND_LABEL: Record<FlowIslandKind, string> = { rail: '단계 궤도', branch: '분기 궤도', cause: '원인·결과', map: '연계 지도' };
+export const FLOW_KIND_LABEL: Record<FlowIslandKind, string> = { rail: '단계 궤도', branch: '분기 궤도', cause: '원인·결과', map: '연계 지도', graph: '관계 그래프' };
 
