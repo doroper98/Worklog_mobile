@@ -6,13 +6,34 @@ import rehypeHighlight from 'rehype-highlight'
 import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
 import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
+import { readDiagram } from '@/services/DiagramFiles'
+import { runMermaid } from '@/services/MermaidRunner'
+import { applyTableViewMarkers } from '@/utils/tableViewMarkers'
 import { safeUrlTransform } from '@/utils/safeUrlTransform'
+import { fromMermaidDb } from '@/islands/mermaidFlowParser'
+import type { FlowGraph } from '@/islands/mermaidFlowParser'
 import {
   applyIslands,
   resetIslands,
   getIslandsDefault,
   setIslandsDefault,
 } from '@/islands/applyIslands'
+
+/**
+ * Read a flowchart with mermaid's own parser rather than the island layer's
+ * regex one, so shapes the regex misses still lay out correctly. Queued with
+ * every other mermaid call — see MermaidRunner. A failure returns null and the
+ * island layer keeps its own parse.
+ */
+function parseFlow(src: string): Promise<FlowGraph | null> {
+  return runMermaid(async (mermaid) => {
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(src)
+    if (!/^flowchart/.test(diagram.type)) return null
+    return fromMermaidDb(diagram.db as Parameters<typeof fromMermaidDb>[0])
+  }).catch(() => null)
+}
+
+const DRAWIO_VIEW = { readDiagram }
 
 interface MarkdownBodyProps {
   content: string
@@ -48,12 +69,25 @@ export function MarkdownBody({
 }: MarkdownBodyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [islandsOn, setIslandsOn] = useState(() => getIslandsDefault() === 'island')
+  const [notice, setNotice] = useState(false)
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+    // Hand the stored per-table view to applyIslands, which expects it as a
+    // Comment node the way marked leaves it.
+    applyTableViewMarkers(el, content)
     // This is a read-only viewer — no editing or streaming state to guard.
-    const cleanup = applyIslands(el, { docKey, enabled: islandsOn })
+    //
+    // No onViewChange: writing a view marker means rewriting the document, and
+    // this app may only write under inbox/. So switching a block here changes
+    // the screen and nothing else, and the reader is told so.
+    const cleanup = applyIslands(el, {
+      docKey,
+      enabled: islandsOn,
+      parseFlow,
+      drawioView: DRAWIO_VIEW,
+    })
     return () => {
       cleanup()
       // Restore the original tables/mermaid blocks before React tears the
@@ -61,6 +95,23 @@ export function MarkdownBody({
       resetIslands(el)
     }
   }, [content, docKey, islandsOn])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let timer = 0
+    const onClick = (ev: Event) => {
+      if (!(ev.target as HTMLElement | null)?.closest('.ww-sw button')) return
+      setNotice(true)
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setNotice(false), 3000)
+    }
+    el.addEventListener('click', onClick)
+    return () => {
+      el.removeEventListener('click', onClick)
+      window.clearTimeout(timer)
+    }
+  }, [content, docKey])
 
   const toggleIslands = useCallback(() => {
     setIslandsOn((on) => {
@@ -103,6 +154,25 @@ export function MarkdownBody({
           </div>
         </div>
       </article>
+      {notice && (
+        <div
+          role="status"
+          className="fixed inset-x-0 z-50 flex justify-center px-4"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)' }}
+        >
+          <span
+            className="rounded-full border px-3 py-1.5 text-[12px]"
+            style={{
+              background: 'var(--color-surface)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-sec)',
+              boxShadow: 'var(--glass-shadow)',
+            }}
+          >
+            이 화면에서는 저장되지 않습니다
+          </span>
+        </div>
+      )}
     </>
   )
 }

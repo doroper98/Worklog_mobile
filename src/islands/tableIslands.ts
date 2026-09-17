@@ -121,6 +121,49 @@ export function classifyTable(p: ParsedTable): TableIslandKind | null {
   return null;
 }
 
+/**
+ * v3.99.2(WP8-17): 표식이 없을 때 이 표를 **섬**으로 볼지 **표**로 볼지 정한다.
+ *
+ * 사용자 결정(2026-09-17): "표가 적절한 것은 표가 낫다. 협의 이력 같은 것은 섬을 유지하고,
+ * 나머지는 표로 되돌린다. 단 억지로 표로 쓴 것(줄글을 칸에 밀어 넣은 것)은 섬이 낫다."
+ * → 읽는 사람이 무엇을 하려는지(역할)로 가른다.
+ *   - 섬: 순서를 따라가는 것(next) · 할 일(todo) · 진행 상태(status) · 결정/협의 이력(dec, records)
+ *         · 항목과 설명 2열 줄글(kv) · 묶음 개요(tree) · 긴 사안 목록(issues)
+ *   - 표: 값을 **맞대어 보는** 것 — 점 격자(rating) · 수치 행렬(matrix) · 비교(compare) ·
+ *         이전·이후(ba) · 막대(bars) · 이름 바꿈(map), 그리고 **열 4개 이상 + 모든 열이 짧을 때**는
+ *         종류와 무관하게 표(빽빽한 값 표는 표가 제일 읽기 쉽다).
+ *   길이는 **열마다** 잰다. 전체 셀 평균을 쓰면 `항목|담당|기한|내용` 처럼 짧은 열 셋에
+ *   줄글 열 하나가 붙은 표가 평균에 묻혀 '빽빽한 값 표'로 잘못 분류된다.
+ * 모바일은 이 파일을 그대로 복사해 같은 기본값을 얻는다.
+ */
+export function defaultTableView(kind: TableIslandKind, p: ParsedTable): 'island' | 'table' {
+  const cols = p.headers.length;
+  // 열마다 평균 글자 수 → 가장 긴 열이 그 표의 '줄글 정도'다
+  const colAvg = p.headers.map((_, c) => {
+    const vals = p.rows.map(r => (r[c] || '').length);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  });
+  const longest = colAvg.length ? Math.max(...colAvg) : 0;
+  // 열이 많고 **모든 열이** 짧으면 무조건 표
+  if (cols >= 4 && longest <= 12) return 'table';
+  switch (kind) {
+    case 'rating': case 'matrix': case 'compare': case 'ba': case 'bars': case 'map':
+      return 'table';
+    case 'next': case 'todo': case 'status': case 'dec': case 'tree':
+      return 'island';
+    case 'records':
+      // 협의·결정·이력 성격이면 섬, 그 밖의 카드 목록은 표
+      return /협의|결정|이력|회의|논의|합의|경과|기록/.test(p.headers.join(' ')) ? 'island' : 'table';
+    case 'issues':
+      return longest >= 18 ? 'island' : 'table';
+    case 'kv':
+      // 항목/설명 2열 줄글이면 섬, 짧은 값 목록이면 표
+      return cols <= 2 && longest >= 18 ? 'island' : 'table';
+    default:
+      return 'table';
+  }
+}
+
 /** 우선순위 표(우선순위·항목·판단)를 읽어 원인·결과 섬에 합칠 정보로 만든다. 못 읽으면 null. */
 export function parsePriorityTable(p: ParsedTable): Map<string, { level: string; note: string }> | null {
   const hs = p.headers;
@@ -171,6 +214,25 @@ function cellInto(target: HTMLElement, cell: HTMLElement | undefined): HTMLEleme
 
 const HONORIFIC_RE = /\s*(책임|선임|수석|전문연구위원|팀장|담당|부사장|사장|상무|이사|과장|대리|사원|연구원|위원)?\s*님$/;
 
+/** 괄호 밖의 , · / 및/와/과 에서만 나눈다 — "SM (PK/FK 물리 탐색)" 은 한 덩어리 */
+function splitOutsideParens(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0, cur = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth = Math.max(0, depth - 1);
+    if (depth === 0) {
+      if (c === ',' || c === '·' || c === '/') { out.push(cur); cur = ''; continue; }
+      const m = /^\s(및|와|과)\s/.exec(text.slice(i));
+      if (m) { out.push(cur); cur = ''; i += m[0].length - 1; continue; }
+    }
+    cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
 function personChips(text: string): HTMLElement {
   const wrap = h('span', 'ww-people');
   // "서영균 → 김수민/정운용" : 앞은 주체, 뒤는 대상
@@ -181,7 +243,7 @@ function personChips(text: string): HTMLElement {
     wrap.appendChild(personChips(arrow[1]));
     return wrap;
   }
-  const parts = text.split(/[,·/]|\s및\s|\s와\s|\s과\s/).map(s => s.trim()).filter(Boolean);
+  const parts = splitOutsideParens(text).map(s => s.trim()).filter(Boolean);
   for (const p of parts) {
     const isTeam = /팀|조직|부서|담당$|센터|실$|그룹/.test(p) && !HONORIFIC_RE.test(p);
     const name = isTeam ? p : p.replace(HONORIFIC_RE, '').trim();
@@ -288,9 +350,10 @@ function buildTodo(p: ParsedTable): HTMLElement {
 function buildNext(p: ParsedTable): HTMLElement {
   const hs = p.headers; const R = columnRoles(p);
   const iWho = R.who, iWhen = R.when, iSt = R.status;
-  const iTitle = hs.findIndex((h, i) => i !== R.idx && /후속|다음|단계|절차|스텝|step|프로세스|내용|작업|항목/i.test(h) && ![iWho, iWhen, iSt].includes(i));
-  const iT = iTitle >= 0 ? iTitle : R.body;
-  const stepNo = R.idx >= 0 ? R.idx : (hs.findIndex(h => /^단계$/.test(h)) >= 0 && numericCols(p).includes(hs.findIndex(h => /^단계$/.test(h))) ? hs.findIndex(h => /^단계$/.test(h)) : -1);
+  const nums = numericCols(p);
+  const iTitle = hs.findIndex((h, i) => i !== R.idx && !nums.includes(i) && /후속|다음|단계|절차|스텝|step|프로세스|내용|작업|항목/i.test(h) && ![iWho, iWhen, iSt].includes(i));
+  const iT = iTitle >= 0 ? iTitle : hs.findIndex((_h, i) => i !== R.idx && !nums.includes(i) && ![iWho, iWhen, iSt].includes(i));
+  const stepNo = R.idx >= 0 ? R.idx : hs.findIndex((h, i) => /^(단계|순서|step|no\.?)$/i.test(h) && nums.includes(i));
   const others = hs.map((_h, i) => i).filter(i => ![iT, iWho, iWhen, iSt, stepNo].includes(i));
   const frag = h('div');
   const m = h('span', 'ww-head-m'); if (iWho >= 0) m.appendChild(h('span', 'ww-chip', hs[iWho])); if (iWhen >= 0) m.appendChild(h('span', 'ww-chip', hs[iWhen])); if (iSt >= 0) m.appendChild(h('span', 'ww-st ww-st-need', hs[iSt]));

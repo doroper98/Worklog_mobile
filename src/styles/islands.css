@@ -5,7 +5,7 @@
  */
 
 .md-content .ww-island { margin: 14px 0; }
-.md-content .ww-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.md-content .ww-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; min-height: 18px; }
 .md-content .ww-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--yk-primary-soft); color: var(--yk-primary); }
 .md-content .ww-sw { display: inline-flex; margin-left: auto; border: 1px solid var(--yk-border-strong); border-radius: 999px; overflow: hidden; background: var(--yk-bg-secondary); }
 .md-content .ww-sw button { appearance: none; border: 0; background: transparent; color: var(--yk-text-muted); font: inherit; font-size: 11px; line-height: 1.6; padding: 1px 9px; cursor: pointer; }
@@ -235,3 +235,37 @@
   .md-content .ww-bars-row { grid-template-columns: minmax(0, 1fr) auto; }
   .md-content .ww-bars-row .ww-bars-trk { grid-column: 1 / -1; }
 }
+
+/* ── v3.94.0: draw.io 도식(.drawio.svg) 이미지 ──────────────────────────────
+   내보낸 SVG 는 `color-scheme: light dark` + CSS light-dark() 를 담는다. <img> 안의 SVG 문서는
+   OS 색 구성표를 따르므로, 앱 테마(10종 중 light 만 밝다)에 맞춰 여기서 못박아 OS 와 어긋나지 않게 한다. */
+.md-content img.md-diagram { max-width: 100%; height: auto; display: block; margin: 12px auto; color-scheme: dark; }
+:root[data-theme="light"] .md-content img.md-diagram { color-scheme: light; }
+
+/* ── v3.95.0: Mermaid 블록 -> draw.io 승격 버튼 ─────────────────────────────
+   .mermaid-diagram 안에 DOM 으로 붙는다. 섬이 켜져 있어도 원본 보기(.ww-raw)에서 그대로 눌린다. */
+.md-content .mermaid-diagram > button.md-promote {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  font: inherit; font-size: 11px; line-height: 1.6;
+  padding: 1px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--yk-border-strong); background: var(--yk-bg-secondary); color: var(--yk-text-muted);
+  opacity: 0.55; transition: opacity 0.12s;
+}
+.md-content .mermaid-diagram:hover > button.md-promote { opacity: 1; }
+.md-content .mermaid-diagram > button.md-promote:hover { color: var(--yk-primary); border-color: var(--yk-primary); }
+
+/* ── v3.99.1: 흐름도 draw.io 뷰 무대 ────────────────────────────────────────
+   뷰어(viewer-static.min.js)가 resize:true 로 컨테이너 폭에 맞춰 축소한다.
+   축소율이 너무 작아지면 renderDrawioXml 이 min-width 를 줘 가로 스크롤로 보낸다. */
+.md-content .ww-drawio-stage { background: var(--yk-surface); padding: 6px 8px; }
+/* v3.99.3: draw.io 뷰의 편집 진입점 — 스위치 오른쪽. Mermaid 보기일 때는 숨긴다(그쪽은 도식 위의 ⤴ 버튼이 맡는다) */
+.md-content .ww-top > button.ww-edit {
+  appearance: none; display: inline-block; border: 1px solid var(--yk-border-strong); border-radius: 999px;
+  background: var(--yk-bg-secondary); color: var(--yk-text-muted);
+  font: inherit; font-size: 11px; line-height: 1.6; padding: 1px 9px; margin-left: 6px; cursor: pointer;
+}
+.md-content .ww-top > button.ww-edit:hover { color: var(--yk-primary); border-color: var(--yk-primary); }
+.md-content .ww-top > button.ww-edit:focus-visible { outline: 2px solid var(--yk-primary); outline-offset: 1px; }
+.md-content .ww-island[data-ww-current="raw"] .ww-top > button.ww-edit { display: none; }
+.md-content .ww-drawio-stage .mxgraph { max-width: 100%; }
+.md-content .ww-drawio-stage svg { display: block; max-width: 100%; height: auto; }

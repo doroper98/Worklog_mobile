@@ -58,8 +58,11 @@
  * that padding — the scroll container still clips at its padding box, so
  * nothing escapes the island. The geometry itself belongs to the desktop
  * module, which is kept verbatim; this only stops the clip.
+ *
+ * Only the island renderer's own stages: a draw.io stage is drawn by the
+ * viewer, which sizes and clips the drawing itself.
  */
-.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage) svg {
+.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage):not(.ww-drawio-stage) svg {
   overflow: visible;
 }
 
@@ -74,7 +77,7 @@
  * sub-pixel widths can't introduce a scrollbar. The right side needs less — the
  * rail already reserves a 24px margin there.
  */
-.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage) {
+.md-content .ww-island-flow:not([data-ww-kind="gantt"]) > .ww-flow-stage:not(.ww-seq-stage):not(.ww-drawio-stage) {
   padding: 10px 4px 10px 14px;
 }
 

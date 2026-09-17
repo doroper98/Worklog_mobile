@@ -169,6 +169,9 @@ export interface TextOpts {
   anchor?: 'start' | 'middle' | 'end';
   family?: string;
   opacity?: number;
+  /** v3.92.3: 글자 뒤 테두리(halo). 선이 글자 위를 지나가도 글자가 끊겨 보이게 한다. 배경색을 넘긴다 */
+  halo?: string;
+  haloWidth?: number;
 }
 
 export function svgText(x: number, y: number, text: string, o: TextOpts, t: IslandTokens): string {
@@ -180,5 +183,9 @@ export function svgText(x: number, y: number, text: string, o: TextOpts, t: Isla
     fill: o.fill || t.text,
     'text-anchor': o.anchor,
     'fill-opacity': o.opacity,
+    stroke: o.halo,
+    'stroke-width': o.halo ? (o.haloWidth ?? 4) : undefined,
+    'paint-order': o.halo ? 'stroke' : undefined,
+    'stroke-linejoin': o.halo ? 'round' : undefined,
   }, escapeXml(text));
 }
