@@ -14,6 +14,10 @@ export default defineConfig({
       manifest: false, // use public/manifest.webmanifest
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // The bundled draw.io viewer is ~4 MB, over workbox's 2 MiB default —
+        // without this it is dropped from the precache and every flow diagram
+        // has to fetch it again, which defeats offline reading.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.github\.com\/.*/i,

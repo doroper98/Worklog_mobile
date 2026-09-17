@@ -31,8 +31,16 @@ function extractRepoPath(url: string): string | null {
   return null
 }
 
+/**
+ * Folders that always sit at the root of the data repository, whatever
+ * document is linking to them. Diagrams and images are shared across journals,
+ * so a document at markdown/2026/09 still writes `diagrams/x.drawio.svg`.
+ */
+const ROOT_FOLDERS = /^(?:diagrams|images)\//
+
 function resolveRelative(src: string, basePath: string): string {
   if (src.startsWith('/')) return src.replace(/^\/+/, '')
+  if (ROOT_FOLDERS.test(src)) return src
   const parts = basePath.split('/').filter(Boolean)
   for (const segment of src.split('/')) {
     if (!segment || segment === '.') continue
@@ -162,5 +170,10 @@ export function GitHubImage({ src, alt, ...rest }: ImgProps) {
     )
   }
 
-  return <img src={resolved} alt={alt} loading="lazy" {...rest} />
+  // islands.css styles diagram images (full width, theme-aware color-scheme)
+  const cls = src && ROOT_FOLDERS.test(src) && src.startsWith('diagrams/')
+    ? `md-diagram${rest.className ? ` ${rest.className}` : ''}`
+    : rest.className
+
+  return <img src={resolved} alt={alt} loading="lazy" {...rest} className={cls} />
 }

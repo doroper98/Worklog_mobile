@@ -1,21 +1,7 @@
 import { useEffect, useRef, useState, useId } from 'react'
 
+import { runMermaid } from '@/services/MermaidRunner'
 import { useTheme } from '@/hooks/useTheme'
-
-type MermaidApi = typeof import('mermaid')['default']
-
-let mermaidApi: MermaidApi | null = null
-let loadPromise: Promise<MermaidApi> | null = null
-
-function loadMermaid(): Promise<MermaidApi> {
-  if (mermaidApi) return Promise.resolve(mermaidApi)
-  if (loadPromise) return loadPromise
-  loadPromise = import('mermaid').then((m) => {
-    mermaidApi = m.default
-    return mermaidApi
-  })
-  return loadPromise
-}
 
 interface Props {
   source: string
@@ -47,30 +33,31 @@ export function MermaidDiagram({ source }: Props) {
   useEffect(() => {
     let cancelled = false
 
-    loadMermaid()
-      .then((mermaid) => {
-        if (cancelled) return
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: effectiveTheme === 'dark' ? 'dark' : 'default',
-          securityLevel: 'strict',
-          // SVG labels rather than html ones: a foreignObject is sized from a
-          // measurement that Korean text overruns, so the label spills outside
-          // its node. <text> is measured by the same engine that draws it.
+    // Queued with every other mermaid call, including the island layer's
+    // flowchart parse — they share mermaid's module-level config and registry.
+    runMermaid(async (mermaid) => {
+      if (cancelled) return null
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: effectiveTheme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        // SVG labels rather than html ones: a foreignObject is sized from a
+        // measurement that Korean text overruns, so the label spills outside
+        // its node. <text> is measured by the same engine that draws it.
+        htmlLabels: false,
+        flowchart: {
           htmlLabels: false,
-          flowchart: {
-            htmlLabels: false,
-            curve: 'basis',
-            // Wrap long labels into several lines instead of one wide node —
-            // narrow phone screens shrink a wide diagram past readability.
-            wrappingWidth: 180,
-            padding: 10,
-          },
-          fontFamily: LABEL_FONT,
-          fontSize: LABEL_FONT_SIZE,
-        })
-        return mermaid.render(renderId, source)
+          curve: 'basis',
+          // Wrap long labels into several lines instead of one wide node —
+          // narrow phone screens shrink a wide diagram past readability.
+          wrappingWidth: 180,
+          padding: 10,
+        },
+        fontFamily: LABEL_FONT,
+        fontSize: LABEL_FONT_SIZE,
       })
+      return mermaid.render(renderId, source)
+    })
       .then((result) => {
         if (cancelled || !result) return
         if (hostRef.current) hostRef.current.innerHTML = result.svg
