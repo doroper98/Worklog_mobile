@@ -21,7 +21,7 @@ import type { TableIslandKind } from './tableIslands';
 import { parseFlowchart, sameFlowGraph } from './mermaidFlowParser';
 import type { FlowGraph } from './mermaidFlowParser';
 import { classifyFlow, renderFlowIsland, renderGraphElk, FLOW_KIND_LABEL } from './flowIslands';
-import { islandToDrawio, paletteFromTokens, recolorXml, extractMxfileFromSvgText, drawioSlugOf } from './drawioExport';
+import { islandToDrawio, paletteFromTokens, recolorXml, inflateMxfile, extractMxfileFromSvgText, drawioSlugOf } from './drawioExport';
 import { resolveIslandTokens } from './islandTokens';
 import { renderDrawioXml } from './drawioViewer';
 import type { FlowIslandKind, CauseExtra, ElkLike } from './flowIslands';
@@ -190,7 +190,8 @@ async function drawDrawio(wrapper: HTMLElement, stage: HTMLElement): Promise<voi
       const svgText = await info.drawio.readDiagram(slug);
       const mx = svgText ? extractMxfileFromSvgText(svgText) : '';
       // 편집본은 다른 테마에서 저장됐을 수 있다 → 역할(wwRole)대로 현재 테마 색을 덮어쓴다(v3.99.4)
-      if (mx) xml = recolorXml(mx, palette);
+      // v3.108.1: 편집기가 내보낸 XML 은 압축본이라 먼저 풀어야 재색칠이 먹는다
+      if (mx) xml = recolorXml(await inflateMxfile(mx), palette);
     }
     if (!xml) {
       const svg = kind === 'graph' && info.elk

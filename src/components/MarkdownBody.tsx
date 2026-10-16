@@ -7,7 +7,7 @@ import { GitHubImage } from '@/components/GitHubImage'
 import { MarkdownBaseContext } from '@/components/MarkdownBaseContext'
 import { MarkdownCodeBlock, MarkdownPre } from '@/components/MarkdownCodeBlock'
 import { readDiagram } from '@/services/DiagramFiles'
-import { runMermaid } from '@/services/MermaidRunner'
+import { runMermaid, loadElk } from '@/services/MermaidRunner'
 import { applyTableViewMarkers } from '@/utils/tableViewMarkers'
 import { safeUrlTransform } from '@/utils/safeUrlTransform'
 import { fromMermaidDb } from '@/islands/mermaidFlowParser'
@@ -86,6 +86,10 @@ export function MarkdownBody({
       docKey,
       enabled: islandsOn,
       parseFlow,
+      // Relation graphs are laid out by ELK when it loads (desktop v3.108.0:
+      // main-axis straightening + inline labels live in that path); until
+      // then, and if the chunk never arrives, the layered map stays.
+      elk: loadElk,
       drawioView: DRAWIO_VIEW,
     })
     return () => {

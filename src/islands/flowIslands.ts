@@ -58,7 +58,7 @@ function strokeSpec(kind: StrokeKind, t: IslandTokens): StrokeSpec {
     case 'no': return { stroke: t.red, width: 2, dash: '5,3', marker: 'red' };
     case 'back': return { stroke: t.text2, width: 1.4, dash: '2,3', marker: 'text2' };
     case 'ref': return { stroke: t.muted, width: 1.2, dash: '1,3', marker: 'muted' };
-    default: return { stroke: t.text, width: 1.4, marker: 'text' };
+    default: return { stroke: t.text2, width: 1.3, marker: 'text2' }; // v3.108.0: 본문 글자색보다 한 단계 연한 선(ChatGPT 풍)
   }
 }
 
@@ -66,7 +66,9 @@ function defs(t: IslandTokens, uid: string): string {
   const m = (id: string, color: string) => svgEl('marker', {
     id: `${uid}-ar-${id}`, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse',
   }, svgEl('path', { d: 'M1 1 L9 5 L1 9 z', fill: color }));
-  return svgEl('defs', {}, m('text', t.text) + m('text2', t.text2) + m('muted', t.muted) + m('primary', t.primary) + m('red', t.red));
+  // v3.108.0: 노드 상자 그림자(neo look). id 는 nextUid 로 받은 uid 와 묶여 nodeBoxShape 가 curUid 로 참조한다
+  const shadow = `<filter id="${uid}-sh" x="-8%" y="-12%" width="116%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="1.6" flood-color="#000000" flood-opacity="0.16"/></filter>`;
+  return svgEl('defs', {}, shadow + m('text', t.text) + m('text2', t.text2) + m('muted', t.muted) + m('primary', t.primary) + m('red', t.red));
 }
 
 /** v3.98.0: `edge` 를 주면 `data-ww-edge="from>>to"` 가 붙는다 — 섬 SVG 를 draw.io XML 로 내보낼 때 쓰는 표시(그림은 그대로). */
@@ -140,7 +142,9 @@ function ortho(pts: Array<[number, number]>, r: number): string {
 }
 
 let uidSeq = 0;
-function nextUid(): string { uidSeq += 1; return `wwf${uidSeq}`; }
+/** v3.108.0: 지금 그리는 섬의 uid — nodeBoxShape 가 그림자 필터 id(`${uid}-sh`)를 만들 때 쓴다 */
+let curUid = 'wwf0';
+function nextUid(): string { uidSeq += 1; curUid = `wwf${uidSeq}`; return curUid; }
 
 /** 노드 테두리(모양별). decision = 액센트 알약, cylinder = 위아래 타원(DB), circle = 이중 알약,
  *  stadium = 둥근 알약, subroutine = 양옆 이중선, hexagon = 모서리 깎음, 그 밖은 둥근 사각형. */
@@ -151,15 +155,16 @@ function nodeBox(x: number, y: number, w: number, h: number, shape: FlowShape | 
     : svgEl('g', { 'data-ww-node': nodeId, 'data-ww-box': `${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)}`, 'data-ww-shape': shape || 'box' }, inner);
 }
 function nodeBoxShape(x: number, y: number, w: number, h: number, shape: FlowShape | undefined, t: IslandTokens): string {
-  const base = { fill: t.surface, stroke: t.borderStrong, 'stroke-width': 1 };
+  // v3.108.0: neo 풍 — 연한 테두리 + 그림자, 모서리 12px (ChatGPT 다이어그램과 같은 인상)
+  const base = { fill: t.surface, stroke: t.border, 'stroke-width': 1, filter: `url(#${curUid}-sh)` };
   switch (shape) {
-    case 'decision': return svgEl('path', { d: `M${x + w / 2} ${y} L${x + w} ${y + h / 2} L${x + w / 2} ${y + h} L${x} ${y + h / 2} Z`, 'stroke-linejoin': 'round', fill: t.surface, stroke: t.primary, 'stroke-width': 1.5 });
+    case 'decision': return svgEl('path', { d: `M${x + w / 2} ${y} L${x + w} ${y + h / 2} L${x + w / 2} ${y + h} L${x} ${y + h / 2} Z`, 'stroke-linejoin': 'round', fill: t.surface, stroke: t.primary, 'stroke-width': 1.5, filter: `url(#${curUid}-sh)` });
     case 'cylinder': { const ry = 5, rx = w / 2, side = h - 2 * ry; return svgEl('path', { d: `M${x} ${y + ry} a${rx} ${ry} 0 0 0 ${w} 0 a${rx} ${ry} 0 0 0 ${-w} 0 v${side} a${rx} ${ry} 0 0 0 ${w} 0 v${-side}`, ...base }); }
     case 'circle': return svgEl('rect', { x, y, width: w, height: h, rx: h / 2, ...base }) + svgEl('rect', { x: x + 3, y: y + 3, width: w - 6, height: h - 6, rx: (h - 6) / 2, fill: 'none', stroke: t.borderStrong, 'stroke-width': 1 });
     case 'stadium': return svgEl('rect', { x, y, width: w, height: h, rx: Math.min(14, h / 2), ...base });
     case 'subroutine': return svgEl('rect', { x, y, width: w, height: h, rx: 3, ...base }) + svgEl('path', { d: `M${x + 5} ${y} v${h} M${x + w - 5} ${y} v${h}`, fill: 'none', stroke: t.borderStrong, 'stroke-width': 1 });
     case 'hexagon': { const c = Math.min(10, h / 2); return svgEl('path', { d: `M${x + c} ${y} H${x + w - c} L${x + w} ${y + h / 2} L${x + w - c} ${y + h} H${x + c} L${x} ${y + h / 2} Z`, ...base }); }
-    default: return svgEl('rect', { x, y, width: w, height: h, rx: 6, ...base });
+    default: return svgEl('rect', { x, y, width: w, height: h, rx: 12, ...base });
   }
 }
 
@@ -1125,7 +1130,7 @@ export interface ElkLike { layout(graph: ElkGraphIn): Promise<ElkGraphOut> }
 export interface ElkGraphIn {
   id: string; layoutOptions?: Record<string, string>;
   children: Array<{ id: string; width: number; height: number }>;
-  edges: Array<{ id: string; sources: string[]; targets: string[]; labels?: Array<{ text: string; width: number; height: number }> }>;
+  edges: Array<{ id: string; sources: string[]; targets: string[]; labels?: Array<{ text: string; width: number; height: number; layoutOptions?: Record<string, string> }>; layoutOptions?: Record<string, string> }>;
 }
 interface ElkPt { x: number; y: number }
 export interface ElkGraphOut {
@@ -1162,11 +1167,48 @@ function toDiamondVertex(pts: Array<[number, number]>, box: { x: number; y: numb
   return atEnd ? [...pts.slice(0, -1), ...jog] : [...jog.slice().reverse(), ...pts.slice(1)];
 }
 
+/** v3.108.0: 본류 — 실선 기준 가장 긴 경로. 되돌림(back edge)을 DFS 로 걷어내 DAG 로 만든 뒤 위상 순서 DP(O(V+E))로 찾는다.
+ *  여기 속한 선에 ELK straightness 우선순위를 주면 NETWORK_SIMPLEX 가 그 선들을 한 줄 수직축으로 편다 (곁가지는 좌우로 빠진다). */
+function backboneEdges(g: FlowGraph): Set<string> {
+  const ids = Array.from(g.nodes.keys());
+  const valid = (e: FlowEdge) => g.nodes.has(e.from) && g.nodes.has(e.to) && e.from !== e.to;
+  const solid = g.edges.filter(e => !e.dashed && valid(e));
+  const pool = solid.length ? solid : g.edges.filter(valid);
+  const out = new Map<string, FlowEdge[]>(); ids.forEach(id => out.set(id, []));
+  pool.forEach(e => out.get(e.from)!.push(e));
+  const state = new Map<string, 0 | 1 | 2>(); const fwd: FlowEdge[] = [];
+  const visit = (id: string) => {
+    state.set(id, 1);
+    for (const e of out.get(id) || []) {
+      const st = state.get(e.to) || 0;
+      if (st === 1) continue; // 되돌림 — 본류 후보에서 제외
+      fwd.push(e);
+      if (st === 0) visit(e.to);
+    }
+    state.set(id, 2);
+  };
+  for (const id of ids) if (!state.get(id)) visit(id);
+  const indeg = new Map<string, number>(); const fout = new Map<string, FlowEdge[]>();
+  ids.forEach(id => { indeg.set(id, 0); fout.set(id, []); });
+  for (const e of fwd) { indeg.set(e.to, (indeg.get(e.to) || 0) + 1); fout.get(e.from)!.push(e); }
+  const order: string[] = []; const q = ids.filter(id => indeg.get(id) === 0);
+  while (q.length) { const id = q.shift()!; order.push(id); for (const e of fout.get(id) || []) { const d = (indeg.get(e.to) || 0) - 1; indeg.set(e.to, d); if (d === 0) q.push(e.to); } }
+  const best = new Map<string, number>(); const prev = new Map<string, FlowEdge>();
+  ids.forEach(id => best.set(id, 0));
+  for (const id of order) for (const e of fout.get(id) || []) { const cand = (best.get(id) || 0) + 1; if (cand > (best.get(e.to) || 0)) { best.set(e.to, cand); prev.set(e.to, e); } }
+  let end = ids[0], len = -1;
+  for (const id of order) { const b = best.get(id) || 0; if (b > len) { len = b; end = id; } }
+  const set = new Set<string>();
+  if (len < 2) return set; // 두 칸짜리 사슬은 축이라 부를 것이 없다
+  for (let cur = end, e = prev.get(cur); e; cur = e.from, e = prev.get(cur)) set.add(`${e.from}>>${e.to}`);
+  return set;
+}
+
 export interface GraphElkOptions { /** 꺾임을 Mermaid 처럼 B-스플라인 곡선으로 */ curve?: boolean }
 
 export async function renderGraphElk(g: FlowGraph, width: number, elk: ElkLike, opts?: GraphElkOptions): Promise<string> {
   const t = resolveIslandTokens(); const uid = nextUid();
-  const SZ = 12.5, pad = 12, M = 6;
+  const SZ = 12.5, pad = 14, M = 6;
   const narrow = width < 520;
   const maxLabelW = narrow ? Math.max(120, Math.min(220, width - 60)) : 220;
   const laid = new Map<string, { lines: string[]; head: number; sys: boolean; w: number; h: number }>();
@@ -1179,24 +1221,34 @@ export async function renderGraphElk(g: FlowGraph, width: number, elk: ElkLike, 
     let side = 0, into = 0, outOf = 0;
     for (const e of g.edges) { if (e.to === n.id) into++; if (e.from === n.id) outOf++; }
     side = Math.max(into, outOf);
-    laid.set(n.id, { ...ll, w, h: Math.max(18 + ll.lines.length * 16, 12 + 6 * Math.max(0, side - 1)) });
+    laid.set(n.id, { ...ll, w, h: Math.max(22 + ll.lines.length * 16, 12 + 6 * Math.max(0, side - 1)) }); // v3.108.0: 상하 여백 +4
   }
   const dir = !narrow && (g.direction === 'LR' || g.direction === 'RL') ? 'RIGHT' : 'DOWN';
   const edges = g.edges.filter(e => g.nodes.has(e.from) && g.nodes.has(e.to) && e.from !== e.to).map((e, i) => ({ e, id: `e${i}` }));
+  const backbone = backboneEdges(g);
   const input: ElkGraphIn = {
     id: 'root',
     layoutOptions: {
       'elk.algorithm': 'layered', 'elk.direction': dir, 'elk.edgeRouting': 'ORTHOGONAL',
       'elk.layered.spacing.nodeNodeBetweenLayers': dir === 'DOWN' ? '40' : '56', 'elk.spacing.nodeNode': dir === 'DOWN' ? '22' : '16',
       'elk.spacing.edgeNode': '18', 'elk.spacing.edgeEdge': '10', 'elk.layered.spacing.edgeNodeBetweenLayers': '24', 'elk.layered.spacing.edgeEdgeBetweenLayers': '10',
-      'elk.spacing.edgeLabel': '4', 'elk.edgeLabels.placement': 'CENTER',
-      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF', 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+      // v3.108.0: 라벨은 선 위에(inline) — 불투명 알약이 선을 가리고 지나간다 (ChatGPT 와 같은 방식)
+      'elk.spacing.edgeLabel': '6', 'elk.edgeLabels.placement': 'CENTER', 'elk.edgeLabels.inline': 'true',
+      // v3.108.0: NETWORK_SIMPLEX + 본류 straightness 우선순위 → 핵심 흐름이 한 줄 수직축에 선다.
+      //   BRANDES_KOEPF 는 전체 폭 균형을 우선해 본류가 층마다 좌우로 밀렸다(실사용 3개 차트 A/C 비교로 확인).
+      'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', 'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
       'elk.layered.mergeEdges': 'false', 'elk.padding': `[top=${M},left=${M},bottom=${M},right=${M}]`,
     },
     children: Array.from(laid, ([id, l]) => ({ id, width: l.w, height: l.h })),
-    edges: edges.map(({ e, id }) => ({ id, sources: [e.from], targets: [e.to], labels: e.label ? [{ text: e.label, width: Math.ceil(measureText(e.label.replace(/\n/g, ' '), 10.5, 600, t.font)) + 12, height: 18 }] : undefined })),
+    edges: edges.map(({ e, id }) => ({
+      id, sources: [e.from], targets: [e.to],
+      // inline 은 라벨 수준 속성이라 라벨 객체에 직접 준다 (그래프 수준에만 두면 ELK 가 선 옆에 붙인다)
+      labels: e.label ? [{ text: e.label, width: Math.ceil(measureText(e.label.replace(/\n/g, ' '), 10.5, 600, t.font)) + 16, height: 20, layoutOptions: { 'elk.edgeLabels.inline': 'true', 'elk.edgeLabels.placement': 'CENTER' } }] : undefined,
+      layoutOptions: backbone.has(`${e.from}>>${e.to}`) ? { 'elk.layered.priority.straightness': '10', 'elk.layered.priority.direction': '10' } : undefined,
+    })),
   };
   const out = await elk.layout(input);
+  curUid = uid; // 기다리는 사이 다른 섬이 그려졌어도 그림자 필터 id 를 내 defs 와 맞춘다
   const W = Math.ceil(out.width || 0) + 2, H = Math.ceil(out.height || 0) + 2;
   let s = '';
   const byId = new Map(edges.map(x => [x.id, x.e] as const));
@@ -1244,8 +1296,9 @@ export async function renderGraphElk(g: FlowGraph, width: number, elk: ElkLike, 
     const e = byId.get(oe.id); const lb = oe.labels?.[0];
     if (e && lb && e.label) {
       const lw = lb.width || 0, lx = lb.x || 0, ly = lb.y || 0;
-      s += svgEl('rect', { x: lx, y: ly, width: lw, height: 18, rx: 4, fill: t.surface, stroke: t.green, 'stroke-width': 1 });
-      s += svgText(lx + 6, ly + 13, e.label.replace(/\n/g, ' '), { size: 10.5, weight: 600, fill: t.green }, t);
+      // v3.108.0: 선 위에 얹히는 불투명 알약 (반투명이면 선이 글자 뒤로 비쳐 읽기 나쁘다)
+      s += svgEl('rect', { x: lx, y: ly, width: lw, height: 20, rx: 10, fill: t.surface, stroke: t.border, 'stroke-width': 1 });
+      s += svgText(lx + lw / 2, ly + 14, e.label.replace(/\n/g, ' '), { size: 10.5, weight: 600, fill: t.text2, anchor: 'middle' }, t);
     }
   }
   for (const c of out.children || []) {

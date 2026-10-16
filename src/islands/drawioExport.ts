@@ -208,6 +208,57 @@ export function toHex(css: string): string {
   return v || '#000000';
 }
 
+/**
+ * v3.108.1: draw.io 편집기가 내보낸 `<mxfile>` 은 `<diagram>` 본문을 **deflate-raw → base64 → URL 인코딩**
+ * 으로 압축해 둔다. `recolorXml` 은 `<mxCell>` 태그를 글자로 찾으므로 압축본에서는 아무것도 못 찾고
+ * 저장 당시 테마 색이 그대로 남았다(사용자 지적 2026-10-15). 여기서 평문 XML 로 풀어 준다.
+ * 브라우저·Node 내장 `DecompressionStream('deflate-raw')` 를 쓰므로 새 패키지는 없다.
+ */
+const DIAGRAM_RE = /(<diagram\b[^>]*>)([\s\S]*?)(<\/diagram>)/g;
+
+/** `<diagram>` 본문이 평문 XML(`<` 로 시작)이 아니면 압축본으로 본다 */
+function isCompressedBody(body: string): boolean {
+  const t = body.trim();
+  return t.length > 0 && !t.startsWith('<');
+}
+
+/** 압축본인 `<diagram>` 이 하나라도 있는가 */
+export function isCompressedMxfile(xml: string): boolean {
+  for (const m of xml.matchAll(DIAGRAM_RE)) if (isCompressedBody(m[2])) return true;
+  return false;
+}
+
+async function inflateDiagramBody(b64: string): Promise<string> {
+  const bin = atob(b64.replace(/\s+/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  const text = await new Response(stream).text();
+  return decodeURIComponent(text);
+}
+
+/** 압축된 `<diagram>` 본문을 모두 평문 XML 로 바꾼 `<mxfile>` 을 돌려준다. 못 풀면 그 부분은 그대로 둔다. */
+export async function inflateMxfile(xml: string): Promise<string> {
+  if (!isCompressedMxfile(xml)) return xml;
+  let out = '';
+  let last = 0;
+  for (const m of xml.matchAll(DIAGRAM_RE)) {
+    const idx = m.index ?? 0;
+    out += xml.slice(last, idx);
+    let piece = m[0];
+    if (isCompressedBody(m[2])) {
+      try {
+        piece = `${m[1]}${await inflateDiagramBody(m[2])}${m[3]}`;
+      } catch (e) {
+        console.warn('[drawio] 압축 XML 을 풀지 못했습니다 — 저장된 색 그대로 그립니다:', e);
+      }
+    }
+    out += piece;
+    last = idx + m[0].length;
+  }
+  return out + xml.slice(last);
+}
+
 /** 저장된 `.drawio.svg` 의 루트 `content` 속성에서 `<mxfile>` XML 을 꺼낸다 */
 export function extractMxfileFromSvgText(svgText: string): string {
   try {
