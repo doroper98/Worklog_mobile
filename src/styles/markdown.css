@@ -180,3 +180,121 @@
 .ww-mermaid .edgeLabel {
   background: var(--color-surface);
 }
+
+/* ─── Mermaid neo look (desktop v3.108.0) ──────────────────────────────
+ * The desktop draws mermaid with `look: neo` + `theme: redux-color` and then
+ * overrides the colors in CSS: box #f3f3f3, 10% black border, 16px corners,
+ * 600-weight #414141 text, 1px #8f8f8f round-capped lines, opaque edge-label
+ * pills. The neo look writes its own rules into the SVG under the diagram id
+ * (`#id [data-look=neo] .node rect { stroke: #28253D }`, `#id .edgeLabel rect
+ * { opacity: .5 }`), and id specificity beats any class selector, hence
+ * !important throughout — same as the desktop.
+ *
+ * Colors come from the theme tokens rather than the desktop's fixed hexes so
+ * the dark palettes keep the same gray, low-contrast impression on their own
+ * surface. On the light theme they resolve to the desktop values within a
+ * shade. The font pin above still applies; these rules only add color/shape.
+ */
+.ww-mermaid {
+  --mm-box: color-mix(in srgb, var(--color-text) 6%, var(--color-surface));
+  --mm-box-alt: color-mix(in srgb, var(--color-text) 3%, var(--color-surface));
+  --mm-border: var(--color-border-strong);
+  --mm-text: var(--color-text-sec);
+  --mm-line: var(--color-text-muted);
+  --mm-pill: var(--color-surface);
+  --mm-pill-border: var(--color-border-strong);
+}
+
+.ww-mermaid svg .node rect,
+.ww-mermaid svg .node circle,
+.ww-mermaid svg .node ellipse,
+.ww-mermaid svg .node polygon,
+.ww-mermaid svg .node path {
+  fill: var(--mm-box) !important;
+  stroke: var(--mm-border) !important;
+  stroke-width: 1px !important;
+}
+
+.ww-mermaid svg .node rect {
+  rx: 16px;
+  ry: 16px;
+}
+
+/* Decision diamonds: a lighter box with a dotted edge, as on the desktop */
+.ww-mermaid svg .node.mermaid-decision .label-container {
+  fill: var(--mm-box-alt) !important;
+  stroke: var(--mm-border) !important;
+  stroke-dasharray: 2, 2;
+}
+
+/* The neo look paints a backing rect behind each node label; the box is enough */
+.ww-mermaid svg .node .label rect.background {
+  fill: none !important;
+  stroke: none !important;
+}
+
+.ww-mermaid svg .node text,
+.ww-mermaid svg .node .label text {
+  font-weight: 600;
+  fill: var(--mm-text) !important;
+}
+
+.ww-mermaid svg .node tspan[font-weight="normal"],
+.ww-mermaid svg .edgeLabels tspan[font-weight="normal"] {
+  font-weight: 600;
+}
+
+.ww-mermaid svg .edgePaths .flowchart-link,
+.ww-mermaid svg .edgePath .path {
+  stroke: var(--mm-line) !important;
+  stroke-width: 1px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ww-mermaid svg .marker {
+  fill: var(--mm-line) !important;
+  stroke: var(--mm-line) !important;
+}
+
+.ww-mermaid svg .edgeLabels text,
+.ww-mermaid svg .edgeLabel text {
+  font-weight: 600;
+  fill: var(--mm-text) !important;
+}
+
+/* Opaque pill on the line: mermaid's built-in neo rule forces 50% opacity */
+.ww-mermaid svg .edgeLabel,
+.ww-mermaid svg .edgeLabel .label {
+  opacity: 1 !important;
+}
+
+.ww-mermaid svg .edgeLabel .label rect.background {
+  opacity: 1 !important;
+  rx: 13px;
+  ry: 13px;
+  fill: var(--mm-pill) !important;
+  stroke: var(--mm-pill-border) !important;
+  stroke-width: 1px;
+}
+
+.ww-mermaid svg .cluster rect {
+  fill: var(--mm-box) !important;
+  fill-opacity: 0.55;
+  stroke: var(--mm-border) !important;
+  stroke-width: 1px !important;
+  rx: 12px;
+  ry: 12px;
+  filter: none !important;
+}
+
+.ww-mermaid svg .cluster-label text,
+.ww-mermaid svg .cluster text {
+  fill: var(--mm-text) !important;
+  font-weight: 600;
+}
+
+/* The html-label chip rule above assumed the classic look; the pill is the rect now */
+.ww-mermaid .edgeLabel {
+  background: transparent;
+}
