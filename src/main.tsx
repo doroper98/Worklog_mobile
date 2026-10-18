@@ -13,6 +13,9 @@ import '@/styles/islands-theme.css'
 import './index.css'
 
 import { App } from '@/App'
+import { registerAppServiceWorker } from '@/hooks/useAppUpdate'
+
+registerAppServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

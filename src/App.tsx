@@ -23,6 +23,7 @@ import { useDocument } from '@/hooks/useDocument'
 import { useTodayFiles } from '@/hooks/useTodayFiles'
 import { useOnline } from '@/hooks/useOnline'
 import { useMetaIndex } from '@/hooks/useMetaIndex'
+import { useAppUpdate } from '@/hooks/useAppUpdate'
 import { clearAllCaches } from '@/utils/refreshCaches'
 
 // ─── View state ─────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
   const todaySlates = allSlates.filter((s) => s.type !== 'followup')
   const online = useOnline()
   const { isIngested, loading: metaLoading, refresh: refreshMeta } = useMetaIndex()
+  const appUpdate = useAppUpdate()
 
   const handleRefresh = useCallback(async () => {
     await clearAllCaches()
@@ -59,8 +61,9 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
       Promise.resolve(refreshWiki()),
       refreshToday(),
       refreshMeta(),
+      appUpdate.checkNow(),
     ])
-  }, [refreshWiki, refreshToday, refreshMeta])
+  }, [refreshWiki, refreshToday, refreshMeta, appUpdate.checkNow])
 
   // Build set of ingested slate IDs from current slates
   const ingestedIds = useMemo(() => {
@@ -322,6 +325,9 @@ function AuthenticatedShell({ onLogout }: { onLogout: () => void }) {
         daysWithFiles={daysWithFiles}
         onSelectDate={selectDate}
         offline={!online}
+        updateReady={appUpdate.needRefresh}
+        updateApplying={appUpdate.applying}
+        onApplyUpdate={appUpdate.apply}
         dataError={todayError}
         followupDates={followupDates}
         ingestedIds={ingestedIds}

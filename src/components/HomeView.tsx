@@ -8,6 +8,7 @@ import type { SlateEntry, FollowupItem } from '@/services/CalendarService'
 import { usePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useReports } from '@/hooks/useReports'
 import { OfflineBanner } from '@/components/OfflineBanner'
+import { UpdateBanner } from '@/components/UpdateBanner'
 import {
   formatDate, getToday, DOW_LABELS,
 } from '@/utils/calendarUtils'
@@ -29,6 +30,10 @@ interface HomeViewProps {
   onSelectDate: (dateStr: string) => void
   /** Offline */
   offline?: boolean
+  /** A new build is waiting; tapping the banner applies it */
+  updateReady?: boolean
+  updateApplying?: boolean
+  onApplyUpdate?: () => void
   /** Slate/journal load failure message (shown as a banner instead of a silent empty day) */
   dataError?: string | null
   /** Meta-index: ingested slate IDs */
@@ -887,6 +892,9 @@ export function HomeView({
   onTabSelect,
   onFabTap,
   onRefresh,
+  updateReady = false,
+  updateApplying = false,
+  onApplyUpdate,
 }: HomeViewProps) {
   const totalDocs = categories.reduce((sum, c) => sum + c.count, 0)
   const todayStr = getToday()
@@ -919,6 +927,7 @@ export function HomeView({
         <AppBar />
         <SearchPill onTap={onSearchTap} count={totalDocs} />
         <OfflineBanner show={offline} />
+        {onApplyUpdate && <UpdateBanner show={updateReady} applying={updateApplying} onApply={onApplyUpdate} />}
         {dataError && !offline && <DataErrorBanner message={dataError} />}
         <WeekStrip
           selectedDate={selectedDate}
