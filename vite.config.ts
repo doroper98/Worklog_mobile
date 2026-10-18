@@ -9,7 +9,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': the new worker waits until the app asks for it, so an
+      // open page is never claimed mid-session and its lazy chunks keep
+      // resolving. The app registers via virtual:pwa-register (useAppUpdate).
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['icons/*.png'],
       manifest: false, // use public/manifest.webmanifest
       workbox: {

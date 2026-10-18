@@ -1,7 +1,7 @@
 # 실행 계획 — PWA 새 버전 반영 흐름 개선 (v0.14.1)
 
-> 작성일: 2026-10-18. 작성 세션은 진단만 수행했고 코드는 바꾸지 않았다.
-> 이 문서는 다음 구현 세션(Opus)이 그대로 따라 실행할 수 있도록 쓴 계획이다.
+> 작성일: 2026-10-18. 같은 날 같은 브랜치에서 구현 완료(v0.14.1).
+> §3의 코드 블록은 설계 초안이며, 실제 구현과 다른 점은 §3.7에 정리했다.
 
 ---
 
@@ -212,6 +212,16 @@ export function UpdateBanner({ show, applying, onApply }: UpdateBannerProps) {
 
 `package.json` `version`: `0.14.0` → `0.14.1`.
 
+### 3.7 구현 시 계획과 달라진 점
+
+- 서비스 워커 등록은 `main.tsx`에서 `registerAppServiceWorker()`로 앱 시작 시 한 번 한다.
+  훅 안에서만 등록하면 로그인 화면에서는 워커가 등록되지 않기 때문이다.
+- 등록·대기 상태는 `useAppUpdate.ts`의 모듈 스코프 싱글턴에 두고, 훅은 구독만 한다.
+  StrictMode 이중 마운트와 다중 사용에도 `registerSW`가 한 번만 호출된다.
+- `onNeedRefresh`에서 `console.info('[pwa] new build installed and waiting')`를 남긴다.
+  실기기에서 Safari 원격 콘솔로 갱신 감지 여부를 확인하기 위한 흔적이다.
+- 배너 아이콘은 기존 `arrow-up`을 쓴다. 새 아이콘은 그리지 않았다.
+
 ## 4. 하지 않는 것
 
 - 프리캐시 축소(draw.io 뷰어를 런타임 캐시로 전환). 오프라인 읽기와 상충한다. 별도 판단 사항.
@@ -231,6 +241,20 @@ export function UpdateBanner({ show, applying, onApply }: UpdateBannerProps) {
    5. 배너 "새 버전이 준비됐습니다"가 뜨는지 확인. 탭 → 새로고침 후 `v0.14.2` 표시 확인.
    6. 버전을 `0.14.1`로 되돌리고 다시 빌드한다.
 4. 커밋: `fix: prompt for new build and re-check on foreground (pwa)`.
+
+**검증 결과 (2026-10-18, headless Chromium 1194, 390×844).**
+
+| 단계 | 결과 |
+|---|---|
+| 0.14.1 로드 → 워커 활성화 → 새로고침 | 홈에 `mobile · v0.14.1`, 배너 없음 |
+| dist를 0.14.2로 교체 → `registration.update()` | 1초 내 배너 "새 버전이 준비됐습니다" 표시, 화면은 여전히 0.14.1 |
+| 배너 탭 | `controllerchange` 1회, 새로고침 1회, `mobile · v0.14.2` 표시 |
+| 갱신 직후 `visibilitychange` | 배너 없음 (중복 알림 없음) |
+| `dist/sw.js` | `clientsClaim()` 없음, `skipWaiting()`은 `SKIP_WAITING` 메시지 핸들러 안에만 존재 |
+
+주의: Playwright의 `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1`을 켜면 새 워커가 `activating`에
+멈추고 `controllerchange`가 반복 발생한다. 하네스 쪽 간섭이며 앱 동작이 아니다. 테스트는 플래그 없이
+돌리고, 로그인 검증 응답 2건을 `github-api` 런타임 캐시에 미리 넣는 방식으로 우회했다.
 
 ## 6. 사용자 안내 (배포 전 임시 조치)
 
